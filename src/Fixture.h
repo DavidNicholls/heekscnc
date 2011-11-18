@@ -7,11 +7,10 @@
  */
 #pragma once
 
-#ifndef STABLE_OPS_ONLY
-
 #include "tinyxml/tinyxml.h"
 #include "HeeksCNCTypes.h"
 #include "interface/Property.h"
+#include "interface/ObjList.h"
 
 #include <gp_Pnt.hxx>
 
@@ -37,6 +36,10 @@ public:
 	bool m_touch_off_point_defined;	// Is the m_touch_off_point valid?
 	gp_Pnt m_touch_off_point;	// Coordinate in the local coordinate system for safe starting point
 								// when switching to this fixture.
+								// NOTE: If we're probing for the fixture's Z value then the touch-off point
+								// Z coordinate is assigned to the machine's position when the probe tip
+								// touches the workpiece.  Generally this is 0.0 but it can be any value
+								// the operator wants to probe against.
 	wxString m_touch_off_description;	// Tell the operator what to do when setting up this fixture.
 										// eg: "touch off 0,0,0 at bottom left corner".
 
@@ -54,6 +57,9 @@ public:
 		m_touch_off_point = gp_Pnt(0.0, 0.0, 0.0);
 		m_touch_off_description = _T("");
 	} // End constructor.
+
+	CFixtureParams & operator= ( const CFixtureParams & rhs );
+	CFixtureParams( const CFixtureParams & rhs );
 
 	void set_initial_values(const bool safety_height_defined, const double safety_height);
 	void write_values_to_config();
@@ -87,7 +93,7 @@ public:
 	It should be noted that this class does not produce any rotational axis GCode.  It
 	is really meant to align the GCode with a workpiece that is not straight.
  */
-class CFixture: public HeeksObj {
+class CFixture: public ObjList {
 public:
 	CFixtureParams m_params;
         wxString m_title;
@@ -173,14 +179,15 @@ public:
 			const double safety_height )
 				: m_coordinate_system_number(coordinate_system_number)
 	{
+		m_title = _T("");
 		m_params.set_initial_values(safety_height_defined, safety_height);
 		if (title != NULL)
 		{
-			m_title = title;
+			m_title.assign(title);
 		} // End if - then
 		else
 		{
-			m_title = GenerateMeaningfulName();
+			m_title.assign(GenerateMeaningfulName());
 		} // End if - else
 	} // End constructor
 
@@ -188,6 +195,9 @@ public:
 	{
 	    return(m_coordinate_system_number < rhs.m_coordinate_system_number);
 	}
+
+	CFixture(const CFixture &rhs );
+	CFixture & operator= ( const CFixture &rhs );
 
 	 // HeeksObj's virtual functions
         int GetType()const{return FixtureType;}
@@ -203,6 +213,7 @@ public:
 	void GetProperties(std::list<Property *> *list);
 	void CopyFrom(const HeeksObj* object);
 	bool CanAddTo(HeeksObj* owner);
+	bool CanAdd(HeeksObj* object);
 	const wxBitmap &GetIcon();
     const wxChar* GetShortString(void)const{return m_title.c_str();}
 	void glCommands(bool select, bool marked, bool no_color);
@@ -216,8 +227,11 @@ public:
 	wxString GenerateMeaningfulName() const;
 	wxString ResetTitle();
 
-	gp_Pnt Adjustment( const gp_Pnt & point ) const;
-	gp_Pnt Adjustment( double *point ) const;
+	gp_Pnt Adjustment( const gp_Pnt & point );
+	TopoDS_Shape Adjustment( TopoDS_Shape & shape );
+	gp_Pnt Adjustment( double *point );
+	gp_Pnt ReverseAdjustment( const gp_Pnt point );		// Place this point from the drawing coordinates to the fixture's coordinates.
+	gp_Pnt Reorient( const gp_Pnt point );
 
 	static void extract(const gp_Trsf& tr, double *m);
 	gp_Trsf GetMatrix(const ePlane_t = XY) const;
@@ -229,7 +243,8 @@ public:
 	bool operator== ( const CFixture & rhs ) const;
 	bool operator!= ( const CFixture & rhs ) const;
 
+	gp_Trsf make_matrix(const gp_Pnt &origin, const gp_Vec &x_axis, const gp_Vec &y_axis) const;
+    gp_Trsf make_matrix(const double* m) const;
+
 }; // End CFixture class definition.
 
-
-#endif

@@ -1,3 +1,3 @@
-%HOMEDRIVE%\python26\python.exe %1
+c:\python26\python.exe %1
 
-#pause
+rem pause

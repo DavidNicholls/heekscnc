@@ -15,6 +15,9 @@
 #include "Program.h"
 #include "CNCConfig.h"
 #include "interface/PropertyString.h"
+#include "interface/strconv.h"
+
+extern wxString ParseGCodeFile( const wxString & filename );
 
 //static
 bool CPyProcess::redirect = false;
@@ -162,7 +165,7 @@ public:
 		else
 		{
 			#ifdef WIN32
-				Execute(wxString(_T("\"")) + theApp.GetDllFolder() + _T("\\nc_read.bat\" ") + m_program->m_machine.file_name + _T(" \"") + m_filename + _T("\""));
+				Execute(wxString(_T("\"")) + theApp.GetDllFolder() + _T("\\nc_read.bat\" ") + m_program->m_machine.file_name + _T(" \"") + m_filename + _T("\" ") + _T("\"") + theApp.GetDllFolder() + _T("\""));
 			#else
 				#ifdef RUNINPLACE
 					wxString path(theApp.GetDllFolder() +_T("/"));
@@ -174,14 +177,41 @@ public:
 					#endif
 				#endif
 
-				Execute(wxString(_T("python \"")) + path + wxString(_T("backplot.py\" \"")) + m_program->m_machine.file_name + wxString(_T("\" \"")) + m_filename + wxString(_T("\"")) );
+				if (m_program->m_use_internal_backplotting == false)
+				{
+					Execute(wxString(_T("python \"")) + path + wxString(_T("backplot.py\" \"")) + m_program->m_machine.file_name + wxString(_T("\" \"")) + m_filename + wxString(_T("\"")) );
+				}
+				else
+				{
+					OnTerminate(m_pid, 0);
+				}
 			#endif
 		} // End if - else
 	}
 	void ThenDo(void)
 	{
-		// there should now be an xml file written
-		wxString xml_file_str = theApp.m_program->GetBackplotFilePath();
+	    wxString xml_file_str = m_filename + wxString(_T(".nc.xml"));
+
+		if (m_program->m_use_internal_backplotting == true)
+		{
+			wxString xml = ParseGCodeFile(m_filename);
+
+			FILE *fp = fopen(Ttc(xml_file_str.c_str()),"w");
+			if (fp == NULL)
+			{
+				wxString error;
+				error << _T("Could not open ") << xml_file_str << _T(" for writing");
+				wxMessageBox(error);
+			}
+			else
+			{
+				fprintf(fp, "%s\n", Ttc(xml));
+				fclose(fp);
+			}
+		}
+
+		// there should now be a .nc.xml written
+
 		wxFile ofs(xml_file_str.c_str());
 		if(!ofs.IsOpened())
 		{
@@ -190,14 +220,20 @@ public:
 		}
 
 		// read the xml file, just like paste, into the program
+		heeksCAD->CreateUndoPoint();
+
 		heeksCAD->OpenXMLFile(xml_file_str, m_into);
 		heeksCAD->Repaint();
 
 		// in Windows, at least, executing the bat file was making HeeksCAD change it's Z order
 		heeksCAD->GetMainFrame()->Raise();
+		heeksCAD->Repaint();
+
+        heeksCAD->Changed();
 
 		delete m_busy_cursor;
 		m_busy_cursor = NULL;
+
 	}
 };
 

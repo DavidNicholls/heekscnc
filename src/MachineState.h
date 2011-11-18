@@ -7,9 +7,7 @@
 
 #pragma once
 
-#ifndef STABLE_OPS_ONLY
 #include "Fixture.h"
-#endif
 #include "PythonStuff.h"
 #include "CNCPoint.h"
 
@@ -19,6 +17,7 @@ class Python;
 class CFixture;
 class CNCPoint;
 class CAttachOp;
+class CMachine;
 
 /**
     The CMachineState class stores information about the machine for use
@@ -41,10 +40,9 @@ private:
 	/**
 		This class remembers an individual machine operation along with
 		the fixture used for gcode generation.  It's really just a placeholder
-		for a tuple of three values so we can keep track of what we've already
+		for a tuple of two values so we can keep track of what we've already
 		processed.
 	 */
- #ifndef STABLE_OPS_ONLY
    class Instance
     {
     public:
@@ -55,20 +53,18 @@ private:
         bool operator==( const Instance & rhs ) const;
         bool operator< ( const Instance & rhs ) const;
 
-        void Type(const int value) { m_object_type = value; }
-        void Id( const unsigned int id ) { m_object_id = id; }
+        void Object(const HeeksObj *object) { m_object = object; }
         void Fixture( const CFixture fixture ) { m_fixture = fixture; }
 
     private:
-        int     m_object_type;
-        unsigned int m_object_id;
+        const HeeksObj	*m_object;
         CFixture    m_fixture;
     }; // End Instance class definition
-#endif
+
 public:
 	CAttachOp* m_attached_to_surface;
 
-	CMachineState();
+	CMachineState(CMachine *pMachine, CFixture fixture);
     ~CMachineState();
 
     CMachineState(CMachineState & rhs);
@@ -77,29 +73,34 @@ public:
     int Tool() const { return(m_tool_number); }
     Python Tool( const int new_tool );
 
-#ifndef STABLE_OPS_ONLY
     CFixture Fixture() const { return(m_fixture); }
     Python Fixture( CFixture fixture );
-#endif
 
     CNCPoint Location() const { return(m_location); }
-    void Location( const CNCPoint rhs ) { m_location = rhs; }
+    void Location( const CNCPoint rhs );
+	bool NearestLocation(CFixture fixture, CNCPoint location, CNCPoint *pPreviousLocation) const;
+
+	bool LocationIsKnown() const { return(m_location_is_known); }
 
     bool operator== ( const CMachineState & rhs ) const;
     bool operator!= ( const CMachineState & rhs ) const { return(! (*this == rhs)); }
 
-#ifndef STABLE_OPS_ONLY
-	bool AlreadyProcessed( const int object_type, const unsigned int object_id, const CFixture fixture );
-	void MarkAsProcessed( const int object_type, const unsigned int object_id, const CFixture fixture );
-#endif
+	bool AlreadyProcessed( const HeeksObj *object, const CFixture fixture );
+	void MarkAsProcessed( const HeeksObj *object, const CFixture fixture );
+	Python ToolChangeMovement_Preamble(std::set<CFixture> & fixtures);
 
 private:
     int         m_tool_number;
-#ifndef STABLE_OPS_ONLY
     CFixture    m_fixture;
-    bool        m_fixture_has_been_set;
-	std::set<Instance> m_already_processed;
-#endif
     CNCPoint      m_location;
+	bool		m_location_is_known;	// false when fixture changes occur.
+    bool        m_fixture_has_been_set;
+	CMachine	*m_pMachine;
+
+	std::set<Instance> m_already_processed;
+
+	// Keep a list of visited points so we can avoid 
+	// unnesseary ramping when we could feed down to a previously visited location.
+	std::multimap<CFixture, CNCPoint> m_previous_locations;
 
 }; // End CMachineState class definition

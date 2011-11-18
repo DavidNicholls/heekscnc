@@ -34,6 +34,7 @@ public:
 	std::set<int> m_external_op_types;
 	bool m_use_Clipper_not_Boolean;
 	bool m_use_DOS_not_Unix;
+	wxString m_startup_files_directory;
 
 	CHeeksCNCApp();
 	~CHeeksCNCApp();

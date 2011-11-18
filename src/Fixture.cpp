@@ -7,8 +7,6 @@
 
 #include <stdafx.h>
 
-#ifndef STABLE_OPS_ONLY
-
 #include <math.h>
 #include "Fixture.h"
 #include "Fixtures.h"
@@ -34,6 +32,8 @@
 #include <gp_Pnt.hxx>
 #include <gp_Ax1.hxx>
 #include <gp_Trsf.hxx>
+#include <BRepBuilderAPI_Transform.hxx>
+#include <TopoDS_Shape.hxx>
 
 #include <sstream>
 #include <string>
@@ -48,6 +48,37 @@
 #endif
 
 extern CHeeksCADInterface* heeksCAD;
+
+CFixtureParams & CFixtureParams::operator= ( const CFixtureParams & rhs )
+{
+	if (this != &rhs)
+	{
+		m_yz_plane = rhs.m_yz_plane;
+		m_xz_plane = rhs.m_xz_plane;
+		m_xy_plane = rhs.m_xy_plane;
+
+		m_pivot_point = rhs.m_pivot_point;
+		m_safety_height_defined = rhs.m_safety_height_defined;
+		m_safety_height = rhs.m_safety_height;
+		m_clearance_height = rhs.m_clearance_height;
+		m_touch_off_point_defined = rhs.m_touch_off_point_defined;
+		m_touch_off_point = rhs.m_touch_off_point;
+		m_touch_off_description = rhs.m_touch_off_description;
+	}
+
+	return(*this);
+}
+
+
+CFixtureParams::CFixtureParams( const CFixtureParams & rhs )
+{
+	if (this != &rhs)
+	{
+		*this = rhs;	// Call the assignment operator
+	}
+}
+
+
 
 void CFixtureParams::set_initial_values(const bool safety_height_defined, const double safety_height)
 {
@@ -69,10 +100,11 @@ void CFixtureParams::set_initial_values(const bool safety_height_defined, const 
 	config.Read(_T("clearance_height"), &m_clearance_height, 100.0);
 
 	config.Read(_T("touch_off_point_defined"), &m_touch_off_point_defined, false);
-	double touch_off_point_x, touch_off_point_y;
+	double touch_off_point_x, touch_off_point_y, touch_off_point_z;
 	config.Read(_T("touch_off_point_x"), &touch_off_point_x, 0.0);
 	config.Read(_T("touch_off_point_y"), &touch_off_point_y, 0.0);
-	m_touch_off_point = gp_Pnt( touch_off_point_x, touch_off_point_y, 0.0 );
+	config.Read(_T("touch_off_point_z"), &touch_off_point_z, 0.0);
+	m_touch_off_point = gp_Pnt( touch_off_point_x, touch_off_point_y, touch_off_point_z );
 
 	config.Read(_T("touch_off_description"), &m_touch_off_description, _T(""));
 }
@@ -99,6 +131,7 @@ void CFixtureParams::write_values_to_config()
 	config.Write(_T("touch_off_point_defined"), m_touch_off_point_defined);
 	config.Write(_T("touch_off_point_x"), m_touch_off_point.X());
 	config.Write(_T("touch_off_point_y"), m_touch_off_point.Y());
+	config.Write(_T("touch_off_point_z"), m_touch_off_point.Z());
 
 	config.Write(_T("touch_off_description"), m_touch_off_description);
 }
@@ -131,6 +164,7 @@ static void on_set_pivot_point(const double *vt, HeeksObj* object)
 static void on_set_touch_off_point(const double *vt, HeeksObj* object){
 	((CFixture *)object)->m_params.m_touch_off_point.SetX( vt[0] );
 	((CFixture *)object)->m_params.m_touch_off_point.SetY( vt[1] );
+	((CFixture *)object)->m_params.m_touch_off_point.SetZ( vt[2] );
 }
 
 static void on_set_touch_off_point_defined(const bool value, HeeksObj *object)
@@ -186,13 +220,14 @@ void CFixtureParams::GetProperties(CFixture* parent, std::list<Property *> *list
 	list->push_back(new PropertyCheck(_("Touch Off Point Defined"), m_touch_off_point_defined, parent, on_set_touch_off_point_defined));
 	if (m_touch_off_point_defined)
 	{
-		double touch_off_point[2];
+		double touch_off_point[3];
 		touch_off_point[0] = m_touch_off_point.X();
 		touch_off_point[1] = m_touch_off_point.Y();
+		touch_off_point[2] = m_touch_off_point.Z();
 
 		wxString title;
 		title << _("Touch-off Point (in ") << parent->m_coordinate_system_number << _T(" coordinates)");
-		list->push_back(new PropertyVertex2d(title, touch_off_point, parent, on_set_touch_off_point));
+		list->push_back(new PropertyVertex(title, touch_off_point, parent, on_set_touch_off_point));
 		list->push_back(new PropertyString(_("Touch-off Description"), m_touch_off_description, parent, on_set_touch_off_description));
 	}
 
@@ -219,6 +254,7 @@ void CFixtureParams::WriteXMLAttributes(TiXmlNode *root)
 	element->SetAttribute( "touch_off_point_defined", m_touch_off_point_defined);
 	element->SetDoubleAttribute( "touch_off_point_x", m_touch_off_point.X());
 	element->SetDoubleAttribute( "touch_off_point_y", m_touch_off_point.Y());
+	element->SetDoubleAttribute( "touch_off_point_z", m_touch_off_point.Z());
 
 	element->SetAttribute( "touch_off_description", m_touch_off_description.utf8_str());
 }
@@ -236,18 +272,26 @@ void CFixtureParams::ReadParametersFromXMLElement(TiXmlElement* pElem)
 	if (pElem->Attribute("pivot_point_z")) { double value; pElem->Attribute("pivot_point_z", &value); m_pivot_point.SetZ( value ); }
 
 	int flag = 0;
-	if (pElem->Attribute("safety_height_defined")) pElem->Attribute("safety_height_defined", &flag);
-	m_safety_height_defined = (flag != 0);
+	if (pElem->Attribute("safety_height_defined"))
+	{
+	    pElem->Attribute("safety_height_defined", &flag);
+        m_safety_height_defined = (flag != 0);
+	}
+
 	if (pElem->Attribute("safety_height")) pElem->Attribute("safety_height", &m_safety_height);
 	if (pElem->Attribute("clearance_height")) pElem->Attribute("clearance_height", &m_clearance_height);
 
 	flag = 0;
-	if (pElem->Attribute("touch_off_point_defined")) pElem->Attribute("touch_off_point_defined", &flag);
-	m_touch_off_point_defined = (flag != 0);
+	if (pElem->Attribute("touch_off_point_defined"))
+	{
+	    pElem->Attribute("touch_off_point_defined", &flag);
+        m_touch_off_point_defined = (flag != 0);
+	}
 
 	double value;
 	if (pElem->Attribute("touch_off_point_x")) { pElem->Attribute("touch_off_point_x", &value); m_touch_off_point.SetX( value ); }
 	if (pElem->Attribute("touch_off_point_y")) { pElem->Attribute("touch_off_point_y", &value); m_touch_off_point.SetY( value ); }
+	if (pElem->Attribute("touch_off_point_z")) { pElem->Attribute("touch_off_point_z", &value); m_touch_off_point.SetZ( value ); }
 
 	if (pElem->Attribute("touch_off_description")) m_touch_off_description = Ctt(pElem->Attribute("touch_off_description"));
 }
@@ -333,7 +377,7 @@ void CFixture::GetProperties(std::list<Property *> *list)
 	list->push_back(new PropertyChoice(_("Coordinate System"), choices, int(m_coordinate_system_number) - 1, this, on_set_coordinate_system_number));
 
 	m_params.GetProperties(this, list);
-	HeeksObj::GetProperties(list);
+	ObjList::GetProperties(list);
 }
 
 
@@ -347,6 +391,32 @@ void CFixture::CopyFrom(const HeeksObj* object)
 	operator=(*((CFixture*)object));
 }
 
+
+CFixture::CFixture(const CFixture & rhs )
+{
+	m_title = _T("");
+	if (this != &rhs)
+	{
+		*this = rhs;	// call the assignment operator
+	}
+}
+
+CFixture & CFixture::operator= ( const CFixture & rhs )
+{
+	if (this != &rhs)
+	{
+		m_params = rhs.m_params;
+        m_title = rhs.m_title;
+		m_coordinate_system_number = rhs.m_coordinate_system_number;
+
+		ObjList::operator=( rhs );
+	}
+
+	return(*this);
+}
+
+
+
 #ifdef HEEKSCNC
 #define IS_AN_OPERATION COperations::IsAnOperation
 #else
@@ -357,6 +427,20 @@ bool CFixture::CanAddTo(HeeksObj* owner)
 {
 	return (((owner != NULL) && ((owner->GetType() == FixturesType) || (IS_AN_OPERATION(owner->GetType())))));
 }
+
+bool CFixture::CanAdd(HeeksObj* object)
+{
+    // We will allow a coordinate system object to be kept as a child so that
+    // we know both where the fixture's origin is and what rotation it has.
+    // Make sure we only keep a single coordinate system child though.  Any
+    // more than that doesn't make sense.
+
+    if (GetNumChildren() > 0) return(false);
+    if (object == NULL) return(false);
+    if (object->GetType() == CoordinateSystemType) return(true);
+    return(false);
+}
+
 
 void CFixture::WriteXML(TiXmlNode *root)
 {
@@ -472,29 +556,285 @@ wxString CFixture::ResetTitle()
  */
 void CFixture::glCommands(bool select, bool marked, bool no_color)
 {
-
+    ObjList::glCommands(select, marked, no_color);
 } // End glCommands() method
 
+
+/*
+    Taken from CoordinateSystem.cpp in the HeeksCAD project.
+ */
+gp_Trsf CFixture::make_matrix(const gp_Pnt &origin, const gp_Vec &x_axis, const gp_Vec &y_axis) const
+{
+	gp_Vec unit_x = x_axis.Normalized();
+
+    double t = unit_x.X() * y_axis.X()
+		+ unit_x.Y() * y_axis.Y()
+		+ unit_x.Z() * y_axis.Z() ;
+    gp_Vec y_orthogonal(y_axis.X() - unit_x.X() * t, y_axis.Y() - unit_x.Y() * t, y_axis.Z() - unit_x.Z() * t);
+
+	gp_Vec unit_y = y_orthogonal.Normalized();
+	gp_Vec unit_z = (unit_x ^ y_orthogonal).Normalized();
+
+	double m[16] = {unit_x.X(), unit_y.X(), unit_z.X(), origin.X(), unit_x.Y(), unit_y.Y(), unit_z.Y(), origin.Y(), unit_x.Z(), unit_y.Z(), unit_z.Z(), origin.Z(), 0, 0, 0, 1};
+	return make_matrix(m);
+}
+
+
+gp_Trsf CFixture::make_matrix(const double* m) const
+{
+	gp_Trsf tr;
+	tr.SetValues(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11], 0.0001, 0.00000001);
+	return tr;
+}
 
 /**
 	The Adjustment() method is the workhorse of this class.  This is where the coordinate
 	data that's used to generate GCode is rotated to its new position based on the
 	fixture's settings.  All the NC Operations classes should use this method to rotate
 	their values immediately prior to generating GCode.
+
+	The input point is aligned with the fixture's coordinate system.  The resultant point
+	is aligned with the drawing's coordinate system.
  */
 
-gp_Pnt CFixture::Adjustment( const gp_Pnt & point ) const
+gp_Pnt CFixture::Adjustment( const gp_Pnt & point )
 {
 	gp_Pnt transformed_point(point);
 
-	transformed_point.Transform( GetMatrix(YZ) );
-	transformed_point.Transform( GetMatrix(XZ) );
-	transformed_point.Transform( GetMatrix(XY) );
+	bool private_coordinate_system_found = false;
+
+	// If we have a coordinate system object as a child then use both its
+	// translation and its rotation parameters to offset the model to align
+	// with this fixture.  i.e. the coordinate system child indicates
+	// where the origin of the vice is as well as which way is 'up' in
+	// terms of this vice.
+
+    for (HeeksObj *pCoordinateSystem = GetFirstChild(); pCoordinateSystem != NULL; pCoordinateSystem = GetNextChild())
+	{
+        if (pCoordinateSystem->GetType() == CoordinateSystemType)
+        {
+			private_coordinate_system_found = true;
+
+            // The origin of the coordinate system indicates where the origin of the vice is.
+			gp_Pnt drawing_origin(0.0,0.0,0.0);
+            gp_Pnt fixture_origin;
+            fixture_origin.SetX(heeksCAD->GetDatumPosX(pCoordinateSystem));
+            fixture_origin.SetY(heeksCAD->GetDatumPosY(pCoordinateSystem));
+            fixture_origin.SetZ(heeksCAD->GetDatumPosZ(pCoordinateSystem));
+
+            // Now rotate around the three planes defined by the coordinate system.
+            gp_Vec x_axis(heeksCAD->GetDatumDirx_X(pCoordinateSystem),
+                          heeksCAD->GetDatumDirx_Y(pCoordinateSystem),
+                          heeksCAD->GetDatumDirx_Z(pCoordinateSystem));
+
+            gp_Vec y_axis(heeksCAD->GetDatumDiry_X(pCoordinateSystem),
+                          heeksCAD->GetDatumDiry_Y(pCoordinateSystem),
+                          heeksCAD->GetDatumDiry_Z(pCoordinateSystem));
+
+            gp_Trsf translation;
+			translation.SetTranslation(fixture_origin, drawing_origin);
+			transformed_point.Transform( translation );
+
+			gp_Trsf rotation = make_matrix(drawing_origin, x_axis, y_axis);
+			rotation.Invert();
+			transformed_point.Transform( rotation );
+
+           	transformed_point.Transform( GetMatrix(YZ) );
+			transformed_point.Transform( GetMatrix(XZ) );
+			transformed_point.Transform( GetMatrix(XY) );
+        }
+    }
+
+	if (private_coordinate_system_found == false)
+	{
+		transformed_point.Transform( GetMatrix(YZ) );
+		transformed_point.Transform( GetMatrix(XZ) );
+		transformed_point.Transform( GetMatrix(XY) );
+	}
 
 	return(transformed_point);
 } // End Adjustment() method
 
-gp_Pnt CFixture::Adjustment( double *point ) const
+
+// Translate and Rotate this shape from the drawing coordinates to the fixture's coordinates.
+TopoDS_Shape CFixture::Adjustment( TopoDS_Shape & shape )
+{
+	bool private_coordinate_system_found = false;
+
+	// If we have a coordinate system object as a child then use both its
+	// translation and its rotation parameters to offset the model to align
+	// with this fixture.  i.e. the coordinate system child indicates
+	// where the origin of the vice is as well as which way is 'up' in
+	// terms of this vice.
+
+    for (HeeksObj *pCoordinateSystem = GetFirstChild(); pCoordinateSystem != NULL; pCoordinateSystem = GetNextChild())
+	{
+        if (pCoordinateSystem->GetType() == CoordinateSystemType)
+        {
+			private_coordinate_system_found = true;
+
+            // The origin of the coordinate system indicates where the origin of the vice is.
+			gp_Pnt drawing_origin(0.0, 0.0, 0.0);
+            gp_Pnt fixture_origin;
+            fixture_origin.SetX(heeksCAD->GetDatumPosX(pCoordinateSystem));
+            fixture_origin.SetY(heeksCAD->GetDatumPosY(pCoordinateSystem));
+            fixture_origin.SetZ(heeksCAD->GetDatumPosZ(pCoordinateSystem));
+
+            // Now rotate around the three planes defined by the coordinate system.
+            gp_Vec x_axis(heeksCAD->GetDatumDirx_X(pCoordinateSystem),
+                          heeksCAD->GetDatumDirx_Y(pCoordinateSystem),
+                          heeksCAD->GetDatumDirx_Z(pCoordinateSystem));
+
+            gp_Vec y_axis(heeksCAD->GetDatumDiry_X(pCoordinateSystem),
+                          heeksCAD->GetDatumDiry_Y(pCoordinateSystem),
+                          heeksCAD->GetDatumDiry_Z(pCoordinateSystem));
+
+            gp_Trsf translation;
+			translation.SetTranslation(fixture_origin, drawing_origin);
+			BRepBuilderAPI_Transform transform5(translation);
+			transform5.Perform(shape, false);
+			shape = transform5.Shape();
+
+			gp_Trsf rotation = make_matrix(drawing_origin, x_axis, y_axis);
+			rotation.Invert();
+			BRepBuilderAPI_Transform transform4(rotation);
+			transform4.Perform(shape, false);
+			shape = transform4.Shape();
+
+
+			BRepBuilderAPI_Transform transform1(GetMatrix(CFixture::YZ));
+			transform1.Perform(shape, false);
+			shape = transform1.Shape();
+
+			BRepBuilderAPI_Transform transform2(GetMatrix(CFixture::XZ));
+			transform2.Perform(shape, false);
+			shape = transform2.Shape();
+
+			BRepBuilderAPI_Transform transform3(GetMatrix(CFixture::XY));
+			transform3.Perform(shape, false);
+			shape = transform3.Shape();
+        }
+    }
+
+	if (private_coordinate_system_found == false)
+	{
+		BRepBuilderAPI_Transform transform1(GetMatrix(CFixture::YZ));
+		transform1.Perform(shape, false);
+		shape = transform1.Shape();
+
+		BRepBuilderAPI_Transform transform2(GetMatrix(CFixture::XZ));
+		transform2.Perform(shape, false);
+		shape = transform2.Shape();
+
+		BRepBuilderAPI_Transform transform3(GetMatrix(CFixture::XY));
+		transform3.Perform(shape, false);
+		shape = transform3.Shape();
+	}
+
+	return(shape);
+} // End Adjustment() method
+
+
+// Translate and Rotate this point from the drawing coordinates to the fixture's coordinates.
+gp_Pnt CFixture::ReverseAdjustment( const gp_Pnt point )
+{
+	gp_Pnt transformed_point(point);
+
+	// If we have a coordinate system object as a child then use both its
+	// translation and its rotation parameters to offset the model to align
+	// with this fixture.  i.e. the coordinate system child indicates
+	// where the origin of the vice is as well as which way is 'up' in
+	// terms of this vice.
+
+    for (HeeksObj *pCoordinateSystem = GetFirstChild(); pCoordinateSystem != NULL; pCoordinateSystem = GetNextChild())
+	{
+        if (pCoordinateSystem->GetType() == CoordinateSystemType)
+        {
+            // The origin of the coordinate system indicates where the origin of the vice is.
+			gp_Pnt drawing_origin(0.0, 0.0, 0.0);
+            gp_Pnt fixture_origin;
+            fixture_origin.SetX(heeksCAD->GetDatumPosX(pCoordinateSystem));
+            fixture_origin.SetY(heeksCAD->GetDatumPosY(pCoordinateSystem));
+            fixture_origin.SetZ(heeksCAD->GetDatumPosZ(pCoordinateSystem));
+
+            // Now rotate around the three planes defined by the coordinate system.
+            gp_Vec x_axis(heeksCAD->GetDatumDirx_X(pCoordinateSystem),
+                          heeksCAD->GetDatumDirx_Y(pCoordinateSystem),
+                          heeksCAD->GetDatumDirx_Z(pCoordinateSystem));
+
+            gp_Vec y_axis(heeksCAD->GetDatumDiry_X(pCoordinateSystem),
+                          heeksCAD->GetDatumDiry_Y(pCoordinateSystem),
+                          heeksCAD->GetDatumDiry_Z(pCoordinateSystem));
+
+            gp_Trsf translation;
+
+            gp_Trsf rotation = make_matrix(drawing_origin, x_axis, y_axis);
+			transformed_point.Transform( rotation );
+
+			translation.SetTranslation(drawing_origin, fixture_origin);
+			transformed_point.Transform( translation );
+        }
+    }
+
+	return(transformed_point);
+}
+
+
+
+/**
+    Reorient point from real world (GCode) coordinates to alighn with the fixture's coordinate system.
+    Do NOT adust for any artificial rotation from the fixture's 'twist angles' as these were already
+    applied in the GCode (when it was generated)
+ */
+gp_Pnt CFixture::Reorient( const gp_Pnt point )
+{
+	gp_Pnt transformed_point(point);
+
+	// If we have a coordinate system object as a child then use both its
+	// translation and its rotation parameters to offset the model to align
+	// with this fixture.  i.e. the coordinate system child indicates
+	// where the origin of the vice is as well as which way is 'up' in
+	// terms of this vice.
+
+    for (HeeksObj *pCoordinateSystem = GetFirstChild(); pCoordinateSystem != NULL; pCoordinateSystem = GetNextChild())
+	{
+        if (pCoordinateSystem->GetType() == CoordinateSystemType)
+        {
+            // The origin of the coordinate system indicates where the origin of the vice is.
+			gp_Pnt drawing_origin(0.0, 0.0, 0.0);
+            gp_Pnt fixture_origin;
+            fixture_origin.SetX(heeksCAD->GetDatumPosX(pCoordinateSystem));
+            fixture_origin.SetY(heeksCAD->GetDatumPosY(pCoordinateSystem));
+            fixture_origin.SetZ(heeksCAD->GetDatumPosZ(pCoordinateSystem));
+
+            // Now rotate around the three planes defined by the coordinate system.
+            gp_Vec x_axis(heeksCAD->GetDatumDirx_X(pCoordinateSystem),
+                          heeksCAD->GetDatumDirx_Y(pCoordinateSystem),
+                          heeksCAD->GetDatumDirx_Z(pCoordinateSystem));
+
+            gp_Vec y_axis(heeksCAD->GetDatumDiry_X(pCoordinateSystem),
+                          heeksCAD->GetDatumDiry_Y(pCoordinateSystem),
+                          heeksCAD->GetDatumDiry_Z(pCoordinateSystem));
+
+            gp_Trsf translation;
+
+			translation.SetTranslation(fixture_origin, drawing_origin);
+			transformed_point.Transform( translation );
+
+			gp_Trsf rotation = make_matrix(drawing_origin, x_axis, y_axis);
+			transformed_point.Transform( rotation );
+
+			translation.SetTranslation(drawing_origin, fixture_origin);
+			transformed_point.Transform( translation );
+        }
+    }
+
+	return(transformed_point);
+}
+
+
+
+gp_Pnt CFixture::Adjustment( double *point )
 {
 	gp_Pnt ref( point[0], point[1], point[2] );
 	ref = Adjustment( ref );
@@ -653,7 +993,9 @@ void CFixture::SetRotationsFromProbedPoints( const wxString & probed_points_xml_
 	TiXmlDocument* xml = heeksCAD->NewXMLDocument();
 	if (! xml->LoadFile( probed_points_xml_file_name.utf8_str() ))
 	{
-		printf("Failed to load XML file '%s'\n", Ttc(probed_points_xml_file_name.c_str()) );
+		wxString text;
+		text << _("Failed to load XML file ") << probed_points_xml_file_name;
+		wxMessageBox(text);
 	} // End if - then
 	else
 	{
@@ -667,11 +1009,15 @@ void CFixture::SetRotationsFromProbedPoints( const wxString & probed_points_xml_
 				CNCPoint point(0,0,0);
 				for(TiXmlElement* pPoint = heeksCAD->FirstXMLChildElement( pElem ) ; pPoint; pPoint = pPoint->NextSiblingElement())
 				{
-					std::string name(pPoint->Value());
-
-					if (name == "X") { double value; pPoint->Attribute("X", &value); point.SetX( value ); }
-					if (name == "Y") { double value; pPoint->Attribute("Y", &value); point.SetY( value ); }
-					if (name == "Z") { double value; pPoint->Attribute("Z", &value); point.SetZ( value ); }
+				    std::string name(pPoint->Value());
+					wxString value( Ctt(pPoint->GetText()) );
+					double number = 0.0;
+					if (value.ToDouble(&number))
+					{
+					    if (name == "X") { point.SetX( number / PROGRAM->m_units ); }
+                        if (name == "Y") { point.SetY( number / PROGRAM->m_units ); }
+                        if (name == "Z") { point.SetZ( number / PROGRAM->m_units ); }
+					}
 				} // End for
 
 				points.push_back(point);
@@ -681,6 +1027,13 @@ void CFixture::SetRotationsFromProbedPoints( const wxString & probed_points_xml_
 			{
 				if (points.size() >= 3)
 				{
+					for (::size_t i=0; i<points.size(); i++)
+				    {
+				        double x=points[i].X();
+				        double y=points[i].Y();
+				        double z=points[i].Z();
+				        double a=3;
+				    }
 					double reference_rise;
 					double reference_run;
 
@@ -816,4 +1169,3 @@ bool CFixtureParams::operator== ( const CFixtureParams & rhs ) const
 }
 
 
-#endif

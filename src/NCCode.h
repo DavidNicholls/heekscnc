@@ -15,6 +15,7 @@
 #include "interface/HeeksColor.h"
 #include "HeeksCNCTypes.h"
 #include "CTool.h"
+#include "Fixture.h"
 
 #include <TopoDS_Shape.hxx>
 #include <gp_Pnt.hxx>
@@ -59,7 +60,7 @@ public:
 	static double m_prev_x[3];
 	double m_x[3];
 	int m_tool_number;
-	PathObject(){m_x[0] = m_x[1] = m_x[2] = 0.0;}
+	PathObject(){m_x[0] = m_x[1] = m_x[2] = 0.0; }
 	virtual int GetType() = 0; // 0 - line, 1 - arc
 	virtual void GetBox(CBox &box,const PathObject* prev_po){box.Insert(m_x);}
 
@@ -67,7 +68,7 @@ public:
 
 	virtual void WriteXML(TiXmlNode *root) = 0;
 	virtual void ReadFromXMLElement(TiXmlElement* pElem) = 0;
-	virtual void glVertices(const PathObject* prev_po){}
+	virtual void glVertices(const PathObject* prev_po, CFixture *pFixture){}
 	virtual PathObject *MakeACopy(void)const = 0;
 };
 
@@ -76,7 +77,7 @@ public:
 	int GetType(){return int(PathObject::eLine);}
 	void WriteXML(TiXmlNode *root);
 	void ReadFromXMLElement(TiXmlElement* pElem);
-	void glVertices(const PathObject* prev_po);
+	void glVertices(const PathObject* prev_po, CFixture *pFixture);
 	PathObject *MakeACopy(void)const{return new PathLine(*this);}
 
 	std::list<gp_Pnt> Interpolate( const gp_Pnt & start_point,
@@ -96,7 +97,7 @@ public:
 	int GetType(){return int(PathObject::eArc);}
 	void WriteXML(TiXmlNode *root);
 	void ReadFromXMLElement(TiXmlElement* pElem);
-	void glVertices(const PathObject* prev_po);
+	void glVertices(const PathObject* prev_po, CFixture *pFixture);
 	std::list<gp_Pnt> Interpolate( const PathObject *prev_po, const unsigned int number_of_points ) const;
 
 	PathObject *MakeACopy(void)const{return new PathArc(*this);}
@@ -115,8 +116,9 @@ class ColouredPath
 {
 public:
 	ColorEnum m_color_type;
+	CFixture::eCoordinateSystemNumber_t m_eCoordinateSystemNumber;
 	std::list< PathObject* > m_points;
-	ColouredPath():m_color_type(ColorRapidType){}
+	ColouredPath():m_color_type(ColorRapidType), m_eCoordinateSystemNumber(CFixture::G54) {}
 	ColouredPath(const ColouredPath& c);
 	~ColouredPath(){Clear();}
 

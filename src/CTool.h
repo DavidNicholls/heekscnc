@@ -20,6 +20,7 @@ class CAttachOp;
 class CToolParams{
 
 public:
+	static const wxChar *ManuallyDefined;
 
 	typedef enum {
 		eDrill = 0,
@@ -37,6 +38,102 @@ public:
 		eUndefinedToolType
 	} eToolType;
 
+	friend wxString & operator << ( wxString & ss, const eToolType & tool_type )
+	{
+		switch (tool_type)
+		{
+		case eDrill:		ss << _("Drill");
+			break;
+
+		case eCentreDrill:	ss << _("Centre Drill");
+			break;
+
+		case eEndmill:	ss << _("Endmill");
+			break;
+
+		case eSlotCutter:	ss << _("Slot Cutter");
+			break;
+
+		case eBallEndMill:	ss << _("Ball Endmill");
+			break;
+
+		case eChamfer:	ss << _("Chamfer");
+			break;
+
+		case eTurningTool:	ss << _("Turning Tool");
+			break;
+
+		case eTouchProbe:	ss << _("Touch Probe");
+			break;
+
+		case eToolLengthSwitch:	ss << _("Tool Length Switch");
+			break;
+
+		case eExtrusion:	ss << _("Extruder");
+			break;
+
+		case eTapTool:	ss << _("Tap");
+			break;
+
+		case eEngravingTool:	ss << _("Engraving Tool");
+			break;
+
+		case eUndefinedToolType: ss << _("Undefined tool type");
+			break;
+		} // End switch()
+
+		return(ss);
+	}
+
+	friend Python & operator << ( Python & ss, const eToolType & tool_type )
+	{
+		switch (tool_type)
+		{
+		case eDrill:		ss << _("Drill");
+			break;
+
+		case eCentreDrill:	ss << _("Centre Drill");
+			break;
+
+		case eEndmill:	ss << _("Endmill");
+			break;
+
+		case eSlotCutter:	ss << _("Slot Cutter");
+			break;
+
+		case eBallEndMill:	ss << _("Ball Endmill");
+			break;
+
+		case eChamfer:	ss << _("Chamfer");
+			break;
+
+		case eTurningTool:	ss << _("Turning Tool");
+			break;
+
+		case eTouchProbe:	ss << _("Touch Probe");
+			break;
+
+		case eToolLengthSwitch:	ss << _("Tool Length Switch");
+			break;
+
+		case eExtrusion:	ss << _("Extruder");
+			break;
+
+		case eTapTool:	ss << _("Tap");
+			break;
+
+		case eEngravingTool:	ss << _("Engraving Tool");
+			break;
+
+		case eUndefinedToolType: ss << _("Undefined tool type");
+			break;
+		} // End switch()
+
+		return(ss);
+	}
+
+
+
 	typedef std::pair< eToolType, wxString > ToolTypeDescription_t;
 	typedef std::vector<ToolTypeDescription_t > ToolTypesList_t;
 
@@ -50,17 +147,11 @@ public:
 		types_list.push_back( ToolTypeDescription_t( eSlotCutter, wxString(_("Slot Cutter")) ));
 		types_list.push_back( ToolTypeDescription_t( eBallEndMill, wxString(_("Ball End Mill")) ));
 		types_list.push_back( ToolTypeDescription_t( eChamfer, wxString(_("Chamfer")) ));
-#ifndef STABLE_OPS_ONLY
 		types_list.push_back( ToolTypeDescription_t( eTurningTool, wxString(_("Turning Tool")) ));
-#endif
 		types_list.push_back( ToolTypeDescription_t( eTouchProbe, wxString(_("Touch Probe")) ));
 		types_list.push_back( ToolTypeDescription_t( eToolLengthSwitch, wxString(_("Tool Length Switch")) ));
-#ifndef STABLE_OPS_ONLY
 		types_list.push_back( ToolTypeDescription_t( eExtrusion, wxString(_("Extrusion")) ));
-#endif
-#ifndef STABLE_OPS_ONLY
 		types_list.push_back( ToolTypeDescription_t( eTapTool, wxString(_("Tapping Tool")) ));
-#endif
 		types_list.push_back( ToolTypeDescription_t( eEngravingTool, wxString(_("Engraving Tool")) ));
 		return(types_list);
 	} // End GetToolTypesList() method
@@ -196,8 +287,6 @@ public:
 	double m_flowrate;
 	double m_filament_diameter;
 
-
-
 	// The gradient is the steepest angle at which this tool can plunge into the material.  Many
 	// tools behave better if they are slowly ramped down into the material.  This gradient
 	// specifies the steepest angle of decsent.  This is expected to be a negative number indicating
@@ -209,7 +298,10 @@ public:
 
 	// properties for tapping tools
 	int m_direction;    // 0.. right hand tapping, 1..left hand tapping
-        double m_pitch;     // in units/rev
+	double m_pitch;     // in units/rev
+
+	// properties for centre-drills
+	wxString m_size;
 
 	void set_initial_values();
 	void write_values_to_config();
@@ -321,8 +413,19 @@ public:
         double  pitch;
     } tap_sizes_t;
 
+	typedef struct
+	{
+		wxString size;
+		double body_diameter;
+		double drill_diameter;
+		double drill_length;
+		double overall_length;
+	} centre_drill_t;
+
     void SelectTapFromStandardSizes(const tap_sizes_t *tap_sizes);
     std::list<wxString> DesignRulesAdjustment(const bool apply_changes);
+
+	centre_drill_t *CentreDrillDefinition( const wxString size ) const;
 
 }; // End CTool class definition.
 

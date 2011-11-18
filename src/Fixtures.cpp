@@ -3,7 +3,6 @@
 // This program is released under the BSD license. See the file COPYING for details.
 
 #include "stdafx.h"
-#ifndef STABLE_OPS_ONLY
 #include "Fixtures.h"
 #include "tinyxml/tinyxml.h"
 #include "Program.h"
@@ -168,7 +167,7 @@ void CFixtures::CopyFrom(const HeeksObj* object)
 	The fixture objects may be in the 'theApp.m_program->Fixtures()' tree (for globally applied fixtures) but
 	they may also be children of operations 'theApp.m_program->Operations()'.
  */
-CFixture *CFixtures::Find( const CFixture::eCoordinateSystemNumber_t coordinate_system_number )
+CFixture *CFixtures::Find( const CFixture::eCoordinateSystemNumber_t coordinate_system_number, const bool only_public_fixtures /* = false */ )
 {
     for(HeeksObj* ob = GetFirstChild(); ob; ob = GetNextChild())
     {
@@ -183,25 +182,55 @@ CFixture *CFixtures::Find( const CFixture::eCoordinateSystemNumber_t coordinate_
         } // End if - then
     } // End for
 
-	for(HeeksObj* operation = theApp.m_program->Operations()->GetFirstChild(); operation; operation = theApp.m_program->Operations()->GetNextChild())
+    if (only_public_fixtures == false)
     {
-		for (HeeksObj *ob = operation->GetFirstChild(); ob != NULL; ob = operation->GetNextChild())
-		{
-			if (ob->GetType() != FixtureType) continue;
+        for(HeeksObj* operation = theApp.m_program->Operations()->GetFirstChild(); operation; operation = theApp.m_program->Operations()->GetNextChild())
+        {
+            for (HeeksObj *ob = operation->GetFirstChild(); ob != NULL; ob = operation->GetNextChild())
+            {
+                if (ob->GetType() != FixtureType) continue;
 
-			if (ob != NULL)
-			{
-				if (((CFixture *)ob)->m_coordinate_system_number == coordinate_system_number)
-				{
-					return( (CFixture *) ob );
-				} // End if - then
-			} // End if - then
-		} // End for
-	} // End for
+                if (ob != NULL)
+                {
+                    if (((CFixture *)ob)->m_coordinate_system_number == coordinate_system_number)
+                    {
+                        return( (CFixture *) ob );
+                    } // End if - then
+                } // End if - then
+            } // End for
+        } // End for
+    } // End if - then
 
 	return(NULL);
 
 } // End Find() method
+
+
+std::list<CFixture> CFixtures::PublicFixtures()
+{
+    std::list<CFixture> public_fixtures;
+
+    for(HeeksObj* ob = GetFirstChild(); ob; ob = GetNextChild())
+    {
+        if (ob->GetType() != FixtureType) continue;
+
+        if (ob != NULL)
+        {
+            CFixture *pFixture = (CFixture *) ob;
+            public_fixtures.push_back(*pFixture);
+        } // End if - then
+    } // End for
+
+    if (public_fixtures.size() == 0)
+    {
+        public_fixtures.push_back(CFixture(_T("default G54 fixture"), CFixture::G54, false, 0.0));
+    }
+
+	return(public_fixtures);
+
+} // End PublicFixtures() method
+
+
 
 
 /**
@@ -218,5 +247,3 @@ int CFixtures::GetNextFixture()
 
 	return(-1);	// None available.
 } // End GetNextFixture() method
-
-#endif

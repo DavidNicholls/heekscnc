@@ -69,6 +69,7 @@ public:
 	bool operator==( const CSpeedOp & rhs ) const;
 	bool operator!=( const CSpeedOp & rhs ) const { return(! (*this == rhs)); }
 	bool IsDifferent(HeeksObj *other) { return( *this != (*((CSpeedOp *) other))); }
+	std::list<wxString> DesignRulesAdjustment(const bool apply_changes);
 };
 
 #endif

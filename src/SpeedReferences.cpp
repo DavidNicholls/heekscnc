@@ -33,7 +33,7 @@ class ExportSpeedReferences: public Tool{
 
 		// Prompt the user to select a file to import.
 		wxFileDialog fd(heeksCAD->GetMainFrame(), _T("Select a file to export to"),
-				standard_paths.GetUserConfigDir().c_str(), previous_path.c_str(),
+				theApp.m_startup_files_directory.c_str(), previous_path.c_str(),
 				wxString(_("Known Files")) + _T(" |*.heeks;*.HEEKS;")
 					+ _T("*.speed;*.SPEED;*.Speed;")
 					+ _T("*.feed;*.FEED;*.Feed;")
@@ -92,7 +92,7 @@ class ImportSpeedReferences: public Tool{
 
 		// Prompt the user to select a file to import.
 		wxFileDialog fd(heeksCAD->GetMainFrame(), _T("Select a file to import"),
-				standard_paths.GetUserConfigDir().c_str(), previous_path.c_str(),
+			theApp.m_startup_files_directory.c_str(), previous_path.c_str(),
 				wxString(_("Known Files")) + _T(" |*.heeks;*.HEEKS;")
 					+ _T("*.speed;*.SPEED;*.Speed;")
 					+ _T("*.feed;*.FEED;*.Feed;")

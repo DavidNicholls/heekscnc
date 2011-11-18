@@ -20,15 +20,16 @@
 #include "CNCConfig.h"
 #include "MachineState.h"
 #include "Program.h"
+
 #ifdef HEEKSCNC
-#include "Fixtures.h"
-#define FIND_FIRST_TOOL CTool::FindFirstByType
-#define FIND_ALL_TOOLS CTool::FindAllTools
-#define MACHINE_STATE_TOOL(t) pMachineState->Tool(t)
+    #include "Fixtures.h"
+    #define FIND_FIRST_TOOL CTool::FindFirstByType
+    #define FIND_ALL_TOOLS CTool::FindAllTools
+    #define MACHINE_STATE_TOOL(t) pMachineState->Tool(t)
 #else
-#define FIND_FIRST_TOOL heeksCNC->FindFirstToolByType
-#define FIND_ALL_TOOLS heeksCNC->FindAllTools
-#define MACHINE_STATE_TOOL(t) heeksCNC->MachineStateTool(pMachineState, t)
+    #define FIND_FIRST_TOOL heeksCNC->FindFirstToolByType
+    #define FIND_ALL_TOOLS heeksCNC->FindAllTools
+    #define MACHINE_STATE_TOOL(t) heeksCNC->MachineStateTool(pMachineState, t)
 #endif
 
 #include <iterator>
@@ -46,6 +47,7 @@ void COp::WriteBaseXML(TiXmlElement *element)
 	if(m_comment.Len() > 0)element->SetAttribute( "comment", m_comment.utf8_str());
 	element->SetAttribute( "active", m_active);
 	element->SetAttribute( "title", m_title.utf8_str());
+	element->SetAttribute( "execution_order", m_execution_order);
 	element->SetAttribute( "tool_number", m_tool_number);
 
 	ObjList::WriteBaseXML(element);
@@ -70,6 +72,15 @@ void COp::ReadBaseXML(TiXmlElement* element)
 	const char* title = element->Attribute("title");
 	if(title)m_title = wxString(Ctt(title));
 
+	if (element->Attribute("execution_order") != NULL)
+	{
+		m_execution_order = atoi(element->Attribute("execution_order"));
+	} // End if - then
+	else
+	{
+		m_execution_order = 0;
+	} // End if - else
+
 	if (element->Attribute("tool_number") != NULL)
 	{
 		m_tool_number = atoi(element->Attribute("tool_number"));
@@ -93,6 +104,7 @@ void COp::ReadBaseXML(TiXmlElement* element)
 
 static void on_set_comment(const wxChar* value, HeeksObj* object){((COp*)object)->m_comment = value;}
 static void on_set_active(bool value, HeeksObj* object){((COp*)object)->m_active = value;heeksCAD->Changed();}
+static void on_set_execution_order(int value, HeeksObj* object){((COp*)object)->m_execution_order = value;heeksCAD->Changed();}
 
 static void on_set_tool_number(int zero_based_choice, HeeksObj* object)
 {
@@ -107,6 +119,9 @@ static void on_set_tool_number(int zero_based_choice, HeeksObj* object)
 
 	((COp*)object)->WriteDefaultValues();
 
+	// And notify any parent objects that this has occured.
+	((COp *) object)->OnSetTool( ((COp *)object)->m_tool_number );
+
 } // End on_set_tool_number() routine
 
 
@@ -114,6 +129,7 @@ void COp::GetProperties(std::list<Property *> *list)
 {
 	list->push_back(new PropertyString(_("comment"), m_comment, this, on_set_comment));
 	list->push_back(new PropertyCheck(_("active"), m_active, this, on_set_active));
+	list->push_back(new PropertyInt(_("execution_order"), m_execution_order, this, on_set_execution_order));
 
 	if(UsesTool()){
 		std::vector< std::pair< int, wxString > > tools = FIND_ALL_TOOLS();
@@ -159,6 +175,7 @@ COp & COp::operator= ( const COp & rhs )
 		m_comment = rhs.m_comment;
 		m_active = rhs.m_active;
 		m_title = rhs.m_title;
+		m_execution_order = rhs.m_execution_order;
 		m_tool_number = rhs.m_tool_number;
 		m_operation_type = rhs.m_operation_type;
 	}
@@ -267,7 +284,6 @@ Python COp::AppendTextToProgram(CMachineState *pMachineState )
 	if(UsesTool())python << MACHINE_STATE_TOOL(m_tool_number);  // Select the correct  tool.
 
 #ifdef HEEKSCNC
-#ifndef STABLE_OPS_ONLY
 	// Check to see if this operation has its own fixture settings.  If so, change to that fixture now.
 	for (HeeksObj *ob = GetFirstChild(); ob != NULL; ob = GetNextChild())
 	{
@@ -279,7 +295,6 @@ Python COp::AppendTextToProgram(CMachineState *pMachineState )
 		}
 	}
 #endif
-#endif
 
 	return(python);
 }
@@ -290,7 +305,6 @@ void COp::OnEditString(const wxChar* str){
 }
 
 #ifdef HEEKSCNC
-#ifndef STABLE_OPS_ONLY
 class AddFixture: public Tool{
 	// Tool's virtual functions
 	const wxChar* GetTitle(){return _("Add Fixture");}
@@ -321,14 +335,12 @@ public:
 
 static AddFixture add_fixture;
 #endif
-#endif
 
 void COp::GetTools(std::list<Tool*>* t_list, const wxPoint* p)
 {
     ObjList::GetTools( t_list, p );
 
 #ifdef HEEKSCNC
-#ifndef STABLE_OPS_ONLY
 	// See if this operation already has a child fixture.  If so, don't add a second one.
 	unsigned int num_private_fixtures = 0;
 	for (HeeksObj *child = GetFirstChild(); (child != NULL); child = GetNextChild())
@@ -342,10 +354,7 @@ void COp::GetTools(std::list<Tool*>* t_list, const wxPoint* p)
 		t_list->push_back(&add_fixture);
 	} // End if - then
 #endif
-#endif
 }
-
-#ifndef STABLE_OPS_ONLY
 
 /* virtual */ std::list<CFixture> COp::PrivateFixtures()
 {
@@ -361,16 +370,68 @@ void COp::GetTools(std::list<Tool*>* t_list, const wxPoint* p)
 
     return(fixtures);
 } // End PrivateFixtures() method
-#endif
 
 bool COp::operator==(const COp & rhs) const
 {
 	if (m_comment != rhs.m_comment) return(false);
 	if (m_active != rhs.m_active) return(false);
 	if (m_title != rhs.m_title) return(false);
+	if (m_execution_order != rhs.m_execution_order) return(false);
 	if (m_tool_number != rhs.m_tool_number) return(false);
 	if (m_operation_type != rhs.m_operation_type) return(false);
 
 	return(ObjList::operator==(rhs));
 }
+
+
+std::set<COp::ToolNumber_t> COp::GetMachineTools() const
+{
+	std::set<ToolNumber_t> tools;
+
+	if (m_tool_number > 0) tools.insert(m_tool_number);
+
+	return(tools);
+}
+
+wxString COp::DesignRulesPreamble() const
+{
+    wxString preamble;
+ 	preamble << GetShortString() << _(" operation") << _(" (id=") << m_id << _(") ");
+	return(preamble);
+}
+
+std::list<wxString> COp::DesignRulesAdjustment(const bool apply_changes)
+{
+	std::list<wxString> changes;
+
+	// Make some special checks if we're using a chamfering bit.
+	if (m_tool_number > 0)
+	{
+		CTool *pTool = (CTool *) CTool::Find( m_tool_number );
+		if (pTool == NULL)
+		{
+			wxString change;
+			change << DesignRulesPreamble() << _("found with invalid tool number");
+			changes.push_back(change);
+		}
+		else
+		{
+			if (pTool->CuttingRadius() <= 0.0)
+			{
+				wxString change;
+				change << DesignRulesPreamble() << pTool->m_title << _(" diameter is <= 0.0");
+				changes.push_back(change);
+			}
+		}
+	} // End if - then
+	else
+	{
+		wxString change;
+		change << DesignRulesPreamble() << _("with no tool defined");
+		changes.push_back(change);
+	}
+
+	return(changes);
+}
+
 

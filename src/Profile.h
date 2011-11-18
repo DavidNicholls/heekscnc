@@ -34,8 +34,6 @@ public:
 	bool m_auto_roll_on;
 	bool m_auto_roll_off;
 	double m_auto_roll_radius;
-    double m_lead_in_line_len;
-    double m_lead_out_line_len;
 	double m_roll_on_point[3];
 	double m_roll_off_point[3];
 	bool m_start_given;
@@ -49,7 +47,6 @@ public:
 
 	double m_offset_extra; // in mm
 	bool m_do_finishing_pass;
-	bool m_only_finishing_pass; // don't do roughing pass
 	double m_finishing_h_feed_rate;
 	eCutMode m_finishing_cut_mode;
 	double m_finishing_step_down;

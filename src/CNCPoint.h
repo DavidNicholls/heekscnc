@@ -45,6 +45,7 @@ public:
 private:
 	double Tolerance() const;
 	double Units() const;
+	static double s_tolerance;
 }; // End CNCPoint class definition.
 
 

@@ -140,6 +140,8 @@ public:
 	bool operator==( const CDrilling & rhs ) const;
 	bool operator!=( const CDrilling & rhs ) const { return(! (*this == rhs)); }
 	bool IsDifferent( HeeksObj *other ) { return( *this != (*(CDrilling *)other) ); }
+
+	/* virtual */ void OnSetTool(const COp::ToolNumber_t new_tool_number); // from COp class.
 };
 
 

@@ -15,6 +15,7 @@
 #include "interface/PropertyDouble.h"
 #include "interface/PropertyLength.h"
 #include "interface/PropertyCheck.h"
+#include "interface/PropertyVertex.h"
 #include "interface/Tool.h"
 #include "Profile.h"
 #include "Pocket.h"
@@ -25,14 +26,10 @@
 #include "Op.h"
 #include "CNCConfig.h"
 #include "CounterBore.h"
-#ifndef STABLE_OPS_ONLY
 #include "Fixture.h"
-#endif
 #include "SpeedOp.h"
 #include "Operations.h"
-#ifndef STABLE_OPS_ONLY
 #include "Fixtures.h"
-#endif
 #include "Tools.h"
 #include "interface/strconv.h"
 #include "MachineState.h"
@@ -47,14 +44,25 @@
 #include <memory>
 using namespace std;
 
+
+#ifdef HEEKSCNC
+#include "Fixtures.h"
+#define FIND_FIRST_TOOL CTool::FindFirstByType
+#define FIND_ALL_TOOLS CTool::FindAllTools
+#define MACHINE_STATE_TOOL(t) pMachineState->Tool(t)
+#else
+#define FIND_FIRST_TOOL heeksCNC->FindFirstToolByType
+#define FIND_ALL_TOOLS heeksCNC->FindAllTools
+#define MACHINE_STATE_TOOL(t) heeksCNC->MachineStateTool(pMachineState, t)
+#endif
+
+
+
 wxString CProgram::alternative_machines_file = _T("");
 
 CProgram::CProgram():m_nc_code(NULL), m_operations(NULL), m_tools(NULL), m_speed_references(NULL)
-#ifndef STABLE_OPS_ONLY
-, m_fixtures(NULL)
-, m_active_machine_state(NULL)
-#endif
-, m_script_edited(false)
+							, m_fixtures(NULL)
+							, m_script_edited(false)
 {
 	CNCConfig config(ConfigScope());
 	wxString machine_file_name;
@@ -62,11 +70,14 @@ CProgram::CProgram():m_nc_code(NULL), m_operations(NULL), m_tools(NULL), m_speed
 	m_machine = CProgram::GetMachine(machine_file_name);
 
 	config.Read(_T("OutputFileNameFollowsDataFileName"), &m_output_file_name_follows_data_file_name, true);
+	config.Read(_T("UseInternalBackplotting"), &m_use_internal_backplotting,  true);
+	config.Read(_T("Emc2VariablesUnits"), (int *) &m_emc2_variables_units,  int(CProgram::eUndefined));
 
     wxStandardPaths standard_paths;
     wxFileName default_path( standard_paths.GetTempDir().c_str(), _T("test.tap"));
 
 	config.Read(_T("ProgramOutputFile"), &m_output_file, default_path.GetFullPath().c_str());
+	config.Read(_T("EMC2VariablesFileName"), &m_emc2_variables_file_name, _T("emc.var"));
 
 	config.Read(_T("ProgramUnits"), &m_units, 1.0);
 	config.Read(_("ProgramPathControlMode"), (int *) &m_path_control_mode, (int) ePathControlUndefined );
@@ -95,15 +106,16 @@ CProgram::CProgram( const CProgram & rhs ) : ObjList(rhs)
     m_operations = NULL;
     m_tools = NULL;
     m_speed_references = NULL;
-#ifndef STABLE_OPS_ONLY
     m_fixtures = NULL;
-#endif
     m_script_edited = false;
 
     m_raw_material = rhs.m_raw_material;
     m_machine = rhs.m_machine;
     m_output_file = rhs.m_output_file;
+    m_emc2_variables_file_name = rhs.m_emc2_variables_file_name;
     m_output_file_name_follows_data_file_name = rhs.m_output_file_name_follows_data_file_name;
+    m_use_internal_backplotting = rhs.m_use_internal_backplotting;
+    m_emc2_variables_units = rhs.m_emc2_variables_units;
 
     m_script_edited = rhs.m_script_edited;
     m_units = rhs.m_units;
@@ -121,9 +133,7 @@ CProgram::CProgram( const CProgram & rhs ) : ObjList(rhs)
     if ((m_operations != NULL) && (rhs.m_operations != NULL)) *m_operations = *(rhs.m_operations);
     if ((m_tools != NULL) && (rhs.m_tools != NULL)) *m_tools = *(rhs.m_tools);
     if ((m_speed_references != NULL) && (rhs.m_speed_references != NULL)) *m_speed_references = *(rhs.m_speed_references);
- #ifndef STABLE_OPS_ONLY
-   if ((m_fixtures != NULL) && (rhs.m_fixtures != NULL)) *m_fixtures = *(rhs.m_fixtures);
-#endif
+    if ((m_fixtures != NULL) && (rhs.m_fixtures != NULL)) *m_fixtures = *(rhs.m_fixtures);
 }
 
 CProgram::~CProgram()
@@ -152,14 +162,15 @@ void CProgram::CopyFrom(const HeeksObj* object)
 		if ((m_operations != NULL) && (rhs->m_operations != NULL)) m_operations->CopyFrom( rhs->m_operations );
 		if ((m_tools != NULL) && (rhs->m_tools != NULL)) m_tools->CopyFrom( rhs->m_tools );
 		if ((m_speed_references != NULL) && (rhs->m_speed_references != NULL)) m_speed_references->CopyFrom(rhs->m_speed_references);
-#ifndef STABLE_OPS_ONLY
 		if ((m_fixtures != NULL) && (rhs->m_fixtures != NULL)) m_fixtures->CopyFrom(rhs->m_fixtures);
-#endif
 
 		m_raw_material = rhs->m_raw_material;
 		m_machine = rhs->m_machine;
 		m_output_file = rhs->m_output_file;
+		m_emc2_variables_file_name = rhs->m_emc2_variables_file_name;
 		m_output_file_name_follows_data_file_name = rhs->m_output_file_name_follows_data_file_name;
+		m_use_internal_backplotting = rhs->m_use_internal_backplotting;
+		m_emc2_variables_units = rhs->m_emc2_variables_units;
 
 		m_script_edited = rhs->m_script_edited;
 		m_units = rhs->m_units;
@@ -183,14 +194,15 @@ CProgram & CProgram::operator= ( const CProgram & rhs )
 		if ((m_operations != NULL) && (rhs.m_operations != NULL)) *m_operations = *(rhs.m_operations);
 		if ((m_tools != NULL) && (rhs.m_tools != NULL)) *m_tools = *(rhs.m_tools);
 		if ((m_speed_references != NULL) && (rhs.m_speed_references != NULL)) *m_speed_references = *(rhs.m_speed_references);
-#ifndef STABLE_OPS_ONLY
 		if ((m_fixtures != NULL) && (rhs.m_fixtures != NULL)) *m_fixtures = *(rhs.m_fixtures);
-#endif
 
 		m_raw_material = rhs.m_raw_material;
 		m_machine = rhs.m_machine;
 		m_output_file = rhs.m_output_file;
+		m_emc2_variables_file_name = rhs.m_emc2_variables_file_name;
 		m_output_file_name_follows_data_file_name = rhs.m_output_file_name_follows_data_file_name;
+		m_use_internal_backplotting = rhs.m_use_internal_backplotting;
+		m_emc2_variables_units = rhs.m_emc2_variables_units;
 
 		m_script_edited = rhs.m_script_edited;
 		m_units = rhs.m_units;
@@ -209,11 +221,28 @@ CProgram & CProgram::operator= ( const CProgram & rhs )
 CMachine::CMachine()
 {
 	m_max_spindle_speed = 0.0;
+	file_name = _T("not found");
+	description = _T("not found");
 
 	CNCConfig config(CMachine::ConfigScope());
 	config.Read(_T("safety_height_defined"), &m_safety_height_defined, false );
 	config.Read(_T("safety_height"), &m_safety_height, 0.0 );		// in G53 machine units - indicates where to move to for tool changes
 	config.Read(_("ClearanceHeight"), (double *) &(m_clearance_height), 50.0 ); // in local coordinate system (G54 etc.) to show how tall clamps and vices are for movement between machine operations.
+
+	config.Read(_("ToolChangeMovement"), (int *) &m_tool_change_movement, (int) ToolChangeMovement_NotDefined );
+	config.Read(_("ToolChangePosition_x"), (double *) &(m_explicit_tool_change_position[0]), 0.0 );
+	config.Read(_("ToolChangePosition_y"), (double *) &(m_explicit_tool_change_position[1]), 0.0 );
+	config.Read(_("ToolChangePosition_z"), (double *) &(m_explicit_tool_change_position[2]), 0.0 );
+
+	config.Read(_("ToolChangeProbeDepth"), (double *) &(m_tool_change_probe_depth), 300.0 );
+	config.Read(_("ToolLengthSwitchToolNumber"), (int *) &(m_tool_length_switch_number), 0 );
+	config.Read(_("FixtureProbeToolNumber"), (int *) &(m_fixture_probe_tool_number), 0 );
+	config.Read(_("ToolChangeProbingFeedRate"), (double *) &(m_tool_change_probe_feed_rate), 300.0 );
+
+	config.Read(_T("nurbs_supported"), &m_nurbs_supported, false );
+	config.Read(_T("pause_after_tool_change"), &m_pause_after_tool_change, true );
+	config.Read(_T("skip_switch_and_fixture_probing_cycle"), &m_skip_switch_and_fixture_probing_cycle, false );
+	config.Read(_T("auto_check_design_rules"), &m_auto_check_design_rules, true );
 }
 
 CMachine::CMachine( const CMachine & rhs )
@@ -233,6 +262,22 @@ CMachine & CMachine::operator= ( const CMachine & rhs )
 		m_safety_height_defined = rhs.m_safety_height_defined;
 		m_safety_height = rhs.m_safety_height;
 		m_clearance_height = rhs.m_clearance_height;
+
+		m_nurbs_supported = rhs.m_nurbs_supported;
+		m_pause_after_tool_change = rhs.m_pause_after_tool_change;
+		m_skip_switch_and_fixture_probing_cycle = rhs.m_skip_switch_and_fixture_probing_cycle;
+		m_auto_check_design_rules = rhs.m_auto_check_design_rules;
+
+		m_tool_change_movement = rhs.m_tool_change_movement;
+		for (::size_t i = 0; i < sizeof(m_explicit_tool_change_position) / sizeof(m_explicit_tool_change_position[0]); i++)
+		{
+			m_explicit_tool_change_position[i] = rhs.m_explicit_tool_change_position[i];
+		}
+
+		m_tool_change_probe_depth = rhs.m_tool_change_probe_depth;
+		m_tool_length_switch_number = rhs.m_tool_length_switch_number;
+		m_tool_change_probe_feed_rate = rhs.m_tool_change_probe_feed_rate;
+		m_fixture_probe_tool_number = rhs.m_fixture_probe_tool_number;
 	} // End if - then
 
 	return(*this);
@@ -255,6 +300,19 @@ static void on_set_output_file(const wxChar* value, HeeksObj* object)
 	CNCConfig config(CProgram::ConfigScope());
 	config.Write(_T("ProgramOutputFile"), ((CProgram*)object)->m_output_file);
 }
+
+static void on_set_emc2_variables_file_name(const wxChar* value, HeeksObj* object)
+{
+	((CProgram*)object)->m_emc2_variables_file_name = value;
+	CNCConfig config(CProgram::ConfigScope());
+	config.Write(_T("EMC2VariablesFileName"), ((CProgram*)object)->m_emc2_variables_file_name);
+}
+
+void CProgram::SetEmc2VariablesFileName(const wxChar *value)
+{
+	on_set_emc2_variables_file_name( value, this );
+}
+
 
 static void on_set_units(int value, HeeksObj* object)
 {
@@ -285,6 +343,27 @@ static void on_set_output_file_name_follows_data_file_name(int zero_based_choice
 	CNCConfig config(CProgram::ConfigScope());
 	config.Write(_T("OutputFileNameFollowsDataFileName"), pProgram->m_output_file_name_follows_data_file_name );
 }
+
+static void on_set_use_internal_backplotting(int zero_based_choice, HeeksObj *object)
+{
+	CProgram *pProgram = (CProgram *) object;
+	pProgram->m_use_internal_backplotting = (zero_based_choice != 0);
+	heeksCAD->RefreshProperties();
+
+	CNCConfig config(CProgram::ConfigScope());
+	config.Write(_T("UseInternalBackplotting"), pProgram->m_use_internal_backplotting );
+}
+
+static void on_set_emc2_variables_units(int zero_based_choice, HeeksObj *object)
+{
+	CProgram *pProgram = (CProgram *) object;
+	pProgram->m_emc2_variables_units = CProgram::eUnits_t(zero_based_choice);
+	heeksCAD->RefreshProperties();
+
+	CNCConfig config(CProgram::ConfigScope());
+	config.Write(_T("Emc2VariablesUnits"), pProgram->m_emc2_variables_units );
+}
+
 
 static void on_set_clearance_source(int zero_based_choice, HeeksObj *object)
 {
@@ -350,6 +429,39 @@ void CProgram::GetProperties(std::list<Property *> *list)
 	}
 
 	{
+		std::list<wxString> choices;
+		int choice = int(m_use_internal_backplotting?1:0);
+		choices.push_back(_T("Use Python Backplotting"));
+		choices.push_back(_T("Use Internal Backplotting"));
+
+		list->push_back(new PropertyChoice(_("Backplotting"), choices, choice, this, on_set_use_internal_backplotting));
+	}
+
+    if (m_use_internal_backplotting)
+    {
+        list->push_back(new PropertyFile(_("EMC2 Variables File Name"), m_emc2_variables_file_name, this, on_set_emc2_variables_file_name));
+
+        {
+            std::list<wxString> choices;
+            int choice = int(m_emc2_variables_units);
+            choices.push_back(_T("Undefined"));
+            choices.push_back(_T("Metric"));
+            choices.push_back(_T("Imperial"));
+
+            list->push_back(new PropertyChoice(_("EMC2 Variables Units"), choices, choice, this, on_set_emc2_variables_units));
+        }
+
+    }
+
+	typedef enum
+	{
+		eClearanceDefinedByMachine = 0,
+		eClearanceDefinedByFixture,
+		eClearanceDefinedByOperation
+	} eClearanceSource_t;
+
+
+	{
 		std::list< wxString > choices;
 		choices.push_back ( wxString ( _("By Machine") ) );
 		choices.push_back ( wxString ( _("By Fixture") ) );
@@ -401,6 +513,47 @@ static void on_set_max_spindle_speed(double value, HeeksObj* object)
 	heeksCAD->RefreshProperties();
 }
 
+static void on_set_nurbs_supported(const bool value, HeeksObj *object)
+{
+    ((CProgram *)object)->m_machine.m_nurbs_supported = value;
+
+	CNCConfig config(CMachine::ConfigScope());
+	config.Write(_T("nurbs_supported"), ((CProgram *)object)->m_machine.m_nurbs_supported );
+
+    heeksCAD->Changed();
+}
+
+static void on_set_pause_after_tool_change(const bool value, HeeksObj *object)
+{
+    ((CProgram *)object)->m_machine.m_pause_after_tool_change = value;
+
+	CNCConfig config(CMachine::ConfigScope());
+	config.Write(_T("pause_after_tool_change"), ((CProgram *)object)->m_machine.m_pause_after_tool_change );
+
+    heeksCAD->Changed();
+}
+
+static void on_set_skip_switch_and_fixture_probing_cycle(const bool value, HeeksObj *object)
+{
+    ((CProgram *)object)->m_machine.m_skip_switch_and_fixture_probing_cycle = value;
+
+	CNCConfig config(CMachine::ConfigScope());
+	config.Write(_T("skip_switch_and_fixture_probing_cycle"), ((CProgram *)object)->m_machine.m_skip_switch_and_fixture_probing_cycle );
+
+    heeksCAD->Changed();
+}
+
+static void on_set_auto_check_design_rules(const bool value, HeeksObj *object)
+{
+    ((CProgram *)object)->m_machine.m_auto_check_design_rules = value;
+
+	CNCConfig config(CMachine::ConfigScope());
+	config.Write(_T("auto_check_design_rules"), ((CProgram *)object)->m_machine.m_auto_check_design_rules );
+
+    heeksCAD->Changed();
+}
+
+
 static void on_set_safety_height_defined(const bool value, HeeksObj *object)
 {
     ((CProgram *)object)->m_machine.m_safety_height_defined = value;
@@ -421,6 +574,47 @@ static void on_set_safety_height(const double value, HeeksObj *object)
     heeksCAD->Changed();
 }
 
+static void on_set_tool_change_position( const double *position, HeeksObj *object)
+{
+	CMachine *pMachine = &(((CProgram *)object)->m_machine);
+	pMachine->m_explicit_tool_change_position[0] = position[0];
+	pMachine->m_explicit_tool_change_position[1] = position[1];
+	pMachine->m_explicit_tool_change_position[2] = position[2];
+
+	CNCConfig config(CMachine::ConfigScope());
+	config.Write(_T("ToolChangePosition_x"), pMachine->m_explicit_tool_change_position[0]);
+	config.Write(_T("ToolChangePosition_y"), pMachine->m_explicit_tool_change_position[1]);
+	config.Write(_T("ToolChangePosition_z"), pMachine->m_explicit_tool_change_position[2]);
+
+	heeksCAD->RefreshProperties();
+}
+
+
+
+
+
+static void on_set_tool_change_probe_depth( const double value, HeeksObj *object)
+{
+	CMachine *pMachine = &(((CProgram *)object)->m_machine);
+	pMachine->m_tool_change_probe_depth = value;
+
+	CNCConfig config(CMachine::ConfigScope());
+	config.Write(_T("ToolChangeProbeDepth"), pMachine->m_tool_change_probe_depth);
+
+	heeksCAD->RefreshProperties();
+}
+
+static void on_set_tool_change_probe_feed_rate( const double value, HeeksObj *object)
+{
+	CMachine *pMachine = &(((CProgram *)object)->m_machine);
+	pMachine->m_tool_change_probe_feed_rate = value;
+
+	CNCConfig config(CMachine::ConfigScope());
+	config.Write(_T("ToolChangeProbingFeedRate"), pMachine->m_tool_change_probe_feed_rate);
+
+	heeksCAD->RefreshProperties();
+}
+
 static void on_set_clearance_height( const double value, HeeksObj *object)
 {
 	CMachine *pMachine = &(((CProgram *)object)->m_machine);
@@ -428,6 +622,62 @@ static void on_set_clearance_height( const double value, HeeksObj *object)
 
 	CNCConfig config(CMachine::ConfigScope());
 	config.Write(_T("ClearanceHeight"), pMachine->m_clearance_height);
+
+	heeksCAD->RefreshProperties();
+}
+
+static void on_set_tool_length_switch_number( const int zero_based_choice, HeeksObj *object)
+{
+	CMachine *pMachine = &(((CProgram *)object)->m_machine);
+
+	if (zero_based_choice < 0) return;	// An error has occured.
+
+	std::vector< std::pair< int, wxString > > tools = FIND_ALL_TOOLS();
+
+	if ((zero_based_choice >= int(0)) && (zero_based_choice <= int(tools.size()-1)))
+	{
+		pMachine->m_tool_length_switch_number = tools[zero_based_choice].first;	// Convert the choice offset to the tool number for that choice
+	} // End if - then
+
+	CNCConfig config(CMachine::ConfigScope());
+	config.Write(_T("ToolLengthSwitchToolNumber"), pMachine->m_tool_length_switch_number);
+
+	heeksCAD->RefreshProperties();
+}
+
+
+static void on_set_fixture_probe_tool_number( const int zero_based_choice, HeeksObj *object)
+{
+	CMachine *pMachine = &(((CProgram *)object)->m_machine);
+
+	if (zero_based_choice < 0) return;	// An error has occured.
+
+	std::vector< std::pair< int, wxString > > tools = FIND_ALL_TOOLS();
+
+	if ((zero_based_choice >= int(0)) && (zero_based_choice <= int(tools.size()-1)))
+	{
+		pMachine->m_fixture_probe_tool_number = tools[zero_based_choice].first;	// Convert the choice offset to the tool number for that choice
+	} // End if - then
+
+	CNCConfig config(CMachine::ConfigScope());
+	config.Write(_T("FixtureProbeToolNumber"), pMachine->m_fixture_probe_tool_number);
+
+	heeksCAD->RefreshProperties();
+}
+
+
+
+
+
+
+
+static void on_set_tool_change_movement( const int zero_based_choice, HeeksObj *object)
+{
+	CMachine *pMachine = &(((CProgram *)object)->m_machine);
+	pMachine->m_tool_change_movement = CMachine::eToolChangeMovement_t(zero_based_choice);
+
+	CNCConfig config(CMachine::ConfigScope());
+	config.Write(_T("ToolChangeMovement"), (int) pMachine->m_tool_change_movement);
 
 	heeksCAD->RefreshProperties();
 }
@@ -445,7 +695,75 @@ void CMachine::GetProperties(CProgram *parent, std::list<Property *> *list)
     if (m_safety_height_defined)
     {
         list->push_back(new PropertyLength(_("Safety Height (in G53 - Machine - coordinates)"), m_safety_height, parent, on_set_safety_height));
-    }
+
+		{
+			std::list<wxString> choices;
+			choices.push_back(_("Not Defined"));
+			choices.push_back(_("G28"));
+			choices.push_back(_("G28 and then probe for tool length"));
+			choices.push_back(_("G30"));
+			choices.push_back(_("G30 and then probe for tool length"));
+			choices.push_back(_("Excplicitly Defined Coordinates"));
+			choices.push_back(_("Excplicitly Defined Coordinates and then probe for tool length"));
+
+			int choice = (int) m_tool_change_movement;
+			list->push_back(new PropertyChoice(_("Tool Change Movement"), choices, choice, parent, on_set_tool_change_movement));
+		}
+
+		if ((m_tool_change_movement == ToolChangeMovement_ExplicitlyDefined) ||
+			(m_tool_change_movement == ToolChangeMovement_ExplicitlyDefined_and_probe))
+		{
+			list->push_back(new PropertyVertex( _("Tool Change Position - (in G53 - Machine - coordinates)"), m_explicit_tool_change_position, parent, on_set_tool_change_position ));
+		}
+
+		switch (m_tool_change_movement)
+		{
+		case ToolChangeMovement_G28_and_probe:
+		case ToolChangeMovement_G30_and_probe:
+		case ToolChangeMovement_ExplicitlyDefined_and_probe:
+			{
+			list->push_back(new PropertyLength(_("Tool Change Probe Depth"), m_tool_change_probe_depth, parent, on_set_tool_change_probe_depth));
+			list->push_back(new PropertyLength(_("Tool Change Probe Feed Rate"), m_tool_change_probe_feed_rate, parent, on_set_tool_change_probe_feed_rate));
+			list->push_back(new PropertyCheck(_("Pause After Tool Change?"), m_pause_after_tool_change, parent, on_set_pause_after_tool_change));
+			list->push_back(new PropertyCheck(_("Skip Switch and Fixture Probing Cycle?"), m_skip_switch_and_fixture_probing_cycle, parent, on_set_skip_switch_and_fixture_probing_cycle));
+
+			// Add the selection of tools so the operator can select the tool length switch to use.  (we need this
+			// for the switch's height to offset after probing)
+			std::vector< std::pair< int, wxString > > tools = FIND_ALL_TOOLS();
+
+			int choice = 0;
+			int probe_tool_choice = 0;
+			std::list< wxString > choices;
+			for (std::vector< std::pair< int, wxString > >::size_type i=0; i<tools.size(); i++)
+			{
+				choices.push_back(tools[i].second);
+
+				if (m_tool_length_switch_number == tools[i].first)
+				{
+					choice = int(i);
+				} // End if - then
+
+				if (m_fixture_probe_tool_number == tools[i].first)
+				{
+					probe_tool_choice = int(i);
+				} // End if - then
+			} // End for
+
+			list->push_back(new PropertyChoice(_("Tool Length Switch"), choices, choice, parent, on_set_tool_length_switch_number));
+			list->push_back(new PropertyChoice(_("Fixture Probe Tool"), choices, probe_tool_choice, parent, on_set_fixture_probe_tool_number));
+			}
+			break;
+
+		default:
+			// No need to determine these if we're not probing.
+			break;
+		}
+	} // End if - then
+
+	list->push_back(new PropertyCheck(_("NURBS Supported by controller?"), m_nurbs_supported, parent, on_set_nurbs_supported));
+	list->push_back(new PropertyCheck(_("Automatically run design rules check before GCode generation?"), m_auto_check_design_rules, parent, on_set_auto_check_design_rules));
+
+
 } // End GetProperties() method
 
 
@@ -458,9 +776,7 @@ bool CProgram::CanAdd(HeeksObj* object)
 		object->GetType() == OperationsType ||
 		object->GetType() == ToolsType ||
 		object->GetType() == SpeedReferencesType
-#ifndef STABLE_OPS_ONLY
 		|| object->GetType() == FixturesType
-#endif
 		;
 }
 
@@ -526,11 +842,9 @@ bool CProgram::Add(HeeksObj* object, HeeksObj* prev_object)
 		m_speed_references = (CSpeedReferences*)object;
 		break;
 
-#ifndef STABLE_OPS_ONLY
 	case FixturesType:
 		m_fixtures = (CFixtures*)object;
 		break;
-#endif
 	}
 
 	return ObjList::Add(object, prev_object);
@@ -551,9 +865,7 @@ void CProgram::Remove(HeeksObj* object)
 	else if(object == m_operations)m_operations = NULL;
 	else if(object == m_tools)m_tools = NULL;
 	else if(object == m_speed_references)m_speed_references = NULL;
-#ifndef STABLE_OPS_ONLY
 	else if(object == m_fixtures)m_fixtures = NULL;
-#endif
 
 	ObjList::Remove(object);
 }
@@ -573,7 +885,10 @@ HeeksObj* CProgram::ReadFromXMLElement(TiXmlElement* pElem)
 		std::string name(a->Name());
 		if(name == "machine")new_object->m_machine = GetMachine(Ctt(a->Value()));
 		else if(name == "output_file"){new_object->m_output_file.assign(Ctt(a->Value()));}
+		else if(name == "emc2_variables_file_name"){new_object->m_emc2_variables_file_name.assign(Ctt(a->Value()));}
 		else if(name == "output_file_name_follows_data_file_name"){new_object->m_output_file_name_follows_data_file_name = (atoi(a->Value()) != 0); }
+		else if(name == "use_internal_backplotting"){new_object->m_use_internal_backplotting = (atoi(a->Value()) != 0); }
+		else if(name == "emc2_variables_units"){new_object->m_emc2_variables_units = CProgram::eUnits_t(atoi(a->Value())); }
 		else if(name == "program"){theApp.m_program_canvas->m_textCtrl->SetValue(Ctt(a->Value()));}
 		else if(name == "units"){new_object->m_units = a->DoubleValue();}
 		else if(name == "ProgramPathControlMode"){new_object->m_path_control_mode = ePathControlMode_t(atoi(a->Value()));}
@@ -597,6 +912,12 @@ void CMachine::WriteBaseXML(TiXmlElement *element)
 	element->SetAttribute( "safety_height_defined", m_safety_height_defined);
 	element->SetDoubleAttribute( "safety_height", m_safety_height);
 	element->SetDoubleAttribute( "clearance_height", m_clearance_height);
+	element->SetAttribute( "nurbs_supported", m_nurbs_supported);
+	element->SetAttribute( "pause_after_tool_change", m_pause_after_tool_change);
+	element->SetAttribute( "skip_switch_and_fixture_probing_cycle", m_skip_switch_and_fixture_probing_cycle);
+	element->SetAttribute( "auto_check_design_rules", m_auto_check_design_rules);
+
+
 } // End WriteBaseXML() method
 
 void CMachine::ReadBaseXML(TiXmlElement* element)
@@ -607,22 +928,201 @@ void CMachine::ReadBaseXML(TiXmlElement* element)
 	} // End if - then
 
 	int flag = 0;
-	if (element->Attribute("safety_height_defined")) element->Attribute("safety_height_defined", &flag);
-	m_safety_height_defined = (flag != 0);
+	if (element->Attribute("safety_height_defined"))
+	{
+	    element->Attribute("safety_height_defined", &flag);
+        m_safety_height_defined = (flag != 0);
+	}
+
 	if (element->Attribute("safety_height")) element->Attribute("safety_height", &m_safety_height);
 	if (element->Attribute("clearance_height")) element->Attribute("clearance_height", &m_clearance_height);
 
+	flag = 0;
+	if (element->Attribute("nurbs_supported"))
+	{
+	    element->Attribute("nurbs_supported", &flag);
+        m_nurbs_supported = (flag != 0);
+	}
+
+	flag = 1;
+	if (element->Attribute("pause_after_tool_change"))
+	{
+	    element->Attribute("pause_after_tool_change", &flag);
+        m_pause_after_tool_change = (flag != 0);
+	}
+
+	flag = 0;
+	if (element->Attribute("skip_switch_and_fixture_probing_cycle"))
+	{
+	    element->Attribute("skip_switch_and_fixture_probing_cycle", &flag);
+        m_skip_switch_and_fixture_probing_cycle = (flag != 0);
+	}
+
+	flag = 1;
+	if (element->Attribute("auto_check_design_rules"))
+	{
+        element->Attribute("auto_check_design_rules", &flag);
+        m_auto_check_design_rules = (flag != 0);
+	}
 } // End ReadBaseXML() method
+
+
+
+/**
+	Sort the NC operations by;
+		- execution order
+		- centre drilling operations
+		- drilling operations
+		- all other operations (sorted by tool number to avoid unnecessary tool changes)
+ */
+struct sort_operations : public std::binary_function< bool, COp *, COp * >
+{
+	bool operator() ( const COp *lhs, const COp *rhs ) const
+	{
+		if (lhs->m_execution_order < rhs->m_execution_order) return(true);
+		if (lhs->m_execution_order > rhs->m_execution_order) return(false);
+
+		// We want to run through all the centre drilling, then drilling, then milling then chamfering.
+
+		if ((((HeeksObj *)lhs)->GetType() == ChamferType) && (((HeeksObj *)rhs)->GetType() != ChamferType)) return(false);
+		if ((((HeeksObj *)lhs)->GetType() != ChamferType) && (((HeeksObj *)rhs)->GetType() == ChamferType)) return(true);
+
+		if ((((HeeksObj *)lhs)->GetType() == DrillingType) && (((HeeksObj *)rhs)->GetType() != DrillingType)) return(true);
+		if ((((HeeksObj *)lhs)->GetType() != DrillingType) && (((HeeksObj *)rhs)->GetType() == DrillingType)) return(false);
+
+		if ((((HeeksObj *)lhs)->GetType() == DrillingType) && (((HeeksObj *)rhs)->GetType() == DrillingType))
+		{
+			// They're both drilling operations.  Select centre drilling over normal drilling.
+			CTool *lhsPtr = (CTool *) CTool::Find( lhs->m_tool_number );
+			CTool *rhsPtr = (CTool *) CTool::Find( rhs->m_tool_number );
+
+			if ((lhsPtr != NULL) && (rhsPtr != NULL))
+			{
+				if ((lhsPtr->m_params.m_type == CToolParams::eCentreDrill) &&
+				    (rhsPtr->m_params.m_type != CToolParams::eCentreDrill)) return(true);
+
+				if ((lhsPtr->m_params.m_type != CToolParams::eCentreDrill) &&
+				    (rhsPtr->m_params.m_type == CToolParams::eCentreDrill)) return(false);
+
+				// There is no preference for centre drill.  Neither tool is a centre drill.  Give preference
+				// to a normal drill bit over a milling bit now.
+
+				if ((lhsPtr->m_params.m_type == CToolParams::eDrill) &&
+				    (rhsPtr->m_params.m_type != CToolParams::eDrill)) return(true);
+
+				if ((lhsPtr->m_params.m_type != CToolParams::eDrill) &&
+				    (rhsPtr->m_params.m_type == CToolParams::eDrill)) return(false);
+
+				// Finally, give preference to a milling bit over a chamfer bit.
+				if ((lhsPtr->m_params.m_type == CToolParams::eChamfer) &&
+				    (rhsPtr->m_params.m_type != CToolParams::eChamfer)) return(false);
+
+				if ((lhsPtr->m_params.m_type != CToolParams::eChamfer) &&
+				    (rhsPtr->m_params.m_type == CToolParams::eChamfer)) return(true);
+			} // End if - then
+		} // End if - then
+
+		// The execution orders are the same.  Let's group on tool number so as
+		// to avoid unnecessary tool change operations.
+
+		if (lhs->m_tool_number < rhs->m_tool_number) return(true);
+		if (lhs->m_tool_number > rhs->m_tool_number) return(false);
+
+		return(false);
+	} // End operator
+};
+
+
+std::set<CFixture> CProgram::AllFixtures()
+{
+	std::set<CFixture> fixtures;
+
+	for (HeeksObj *publicFixture = theApp.m_program->Fixtures()->GetFirstChild(); publicFixture != NULL;
+        publicFixture = theApp.m_program->Fixtures()->GetNextChild())
+	{
+		fixtures.insert( *((CFixture *) publicFixture) );
+	} // End for
+
+    // Aggregate a list of all the fixtures we're going to use so that we can probe their heights before we start.
+    for(HeeksObj* object = m_operations->GetFirstChild(); object; object = m_operations->GetNextChild())
+	{
+		if ((COperations::IsAnOperation(object->GetType())) &&
+            (((COp*)object)->m_active))
+		{
+		    std::list<CFixture> private_fixtures = ((COp *) object)->PrivateFixtures();
+            for (std::list<CFixture>::iterator itFix = private_fixtures.begin();
+                    itFix != private_fixtures.end(); itFix++)
+            {
+				fixtures.insert( *itFix );
+            }
+		}
+	}
+
+	if (fixtures.size() == 0)
+	{
+		// We need at least one fixture definition to generate any GCode.  Generate one
+		// that provides no rotation at all.
+
+		fixtures.insert( CFixture( NULL, CFixture::G54, false, 0.0 ) );
+	} // End if - then
+
+	return(fixtures);
+}
+
+
+
+std::set<CFixture> CProgram::SelectFixturesToProcess(std::set<CFixture> fixtures)
+{
+	wxString message(_("Select which fixture(s) you want GCode generated for"));
+	wxString caption(_("Fixture selection"));
+	wxArrayString choices;
+
+	choices.Add(_("All fixtures"));
+
+	for (std::set<CFixture>::const_iterator l_itFixture = fixtures.begin(); l_itFixture != fixtures.end(); l_itFixture++)
+    {
+		wxString choice;
+		choice << l_itFixture->m_title;
+		choices.Add(choice);
+	} // End for
+
+	wxArrayInt selections;
+	::wxGetMultipleChoices(selections, message, caption, choices );
+
+	std::set<CFixture> chosen_fixtures;
+	std::vector<CFixture> fixtures_array;
+	std::copy( fixtures.begin(), fixtures.end(), std::inserter( fixtures_array, fixtures_array.begin() ));
+	for (::size_t i=0; i<selections.size(); i++)
+	{
+		if (selections[i] == 0)
+		{
+			// We're doing all fixtures.
+			std::copy( fixtures.begin(), fixtures.end(), std::inserter(chosen_fixtures, chosen_fixtures.end()));
+		}
+		else
+		{
+			// The offset through the 'chosen_fixtures' array is one less than that
+			// of the selections array due to the 'all fixtures' option added at
+			// the top of the selections list.  Hence the '-1'.
+			chosen_fixtures.insert( fixtures_array[selections[i]-1] );
+		}
+	}
+	fixtures.clear();
+	std::copy( chosen_fixtures.begin(), chosen_fixtures.end(), std::inserter( fixtures, fixtures.begin() ));
+	return(chosen_fixtures);
+}
+
+
 
 Python CProgram::RewritePythonProgram()
 {
 	Python python;
 
+
+
 	theApp.m_program_canvas->m_textCtrl->Clear();
-#ifndef STABLE_OPS_ONLY
 	CZigZag::number_for_stl_file = 1;
 	CWaterline::number_for_stl_file = 1;
-#endif
 	CAttachOp::number_for_stl_file = 1;
 
 	// call any OnRewritePython functions from other plugins
@@ -640,7 +1140,6 @@ Python CProgram::RewritePythonProgram()
 	bool nc_attach_needed = false;
 	bool turning_module_needed = false;
 
-	typedef std::vector< COp * > OperationsMap_t;
 	OperationsMap_t operations;
 
 	if (m_operations == NULL)
@@ -686,6 +1185,9 @@ Python CProgram::RewritePythonProgram()
 			}
 		}
 	}
+
+	// Sort the operations in order of execution_order and then by tool_number
+	std::sort( operations.begin(), operations.end(), sort_operations() );
 
 	// Language and Windows codepage detection and correction
 	#ifndef WIN32
@@ -845,6 +1347,16 @@ Python CProgram::RewritePythonProgram()
 		python << _T("metric()\n");
 	}
 	python << _T("set_plane(0)\n");
+	switch (m_emc2_variables_units)
+	{
+        case eMetric:
+            python << _T("machine_units_metric(True)\n");
+        case eImperial:
+            python << _T("machine_units_metric(False)\n");
+        default:
+            break;
+    }
+
 	python << _T("\n");
 
 	if (m_path_control_mode != ePathControlUndefined)
@@ -870,43 +1382,29 @@ Python CProgram::RewritePythonProgram()
 	} // End if - then
 
 	// copied operations ( with same id ) were not being done, so I've removed fixtures completely for the Windows installation
-#ifdef STABLE_OPS_ONLY
-	// Write all the operations
-    CMachineState machine;
-	for (OperationsMap_t::const_iterator l_itOperation = operations.begin(); l_itOperation != operations.end(); l_itOperation++)
-	{
-		HeeksObj *object = (HeeksObj *) *l_itOperation;
-		if (object == NULL) continue;
-
-		if(COperations::IsAnOperation(object->GetType()))
-		{
-			if(((COp*)object)->m_active)
-			{
-				python << ((COp*)object)->AppendTextToProgram( &machine );
-			}
-		}
-	} // End for - operation
-#else
 	// Write all the operations once for each fixture.
-	std::list<CFixture *> fixtures;
-	std::auto_ptr<CFixture> default_fixture = std::auto_ptr<CFixture>(new CFixture( NULL, CFixture::G54, false, 0.0 ) );
+	std::set<CFixture> fixtures = AllFixtures();
 
-    for (HeeksObj *publicFixture = theApp.m_program->Fixtures()->GetFirstChild(); publicFixture != NULL;
-        publicFixture = theApp.m_program->Fixtures()->GetNextChild())
+	if (fixtures.size() > 1)
 	{
-			fixtures.push_back( ((CFixture *) publicFixture) );
-	} // End for
+		// There are at least two different fixtures included in this model.  Ask the user which
+		// ones they want GCode generated for.
+		fixtures = SelectFixturesToProcess(fixtures);
+	} // End if - then
 
 	if (fixtures.size() == 0)
 	{
-		// We need at least one fixture definition to generate any GCode.  Generate one
-		// that provides no rotation at all.
+		wxMessageBox(_("Aborting GCode generation as no fixtures were selected"));
+		Python empty;
+		return(empty);
+	}
 
-		fixtures.push_back( default_fixture.get() );
-	} // End if - then
+	CMachineState machine(&m_machine, *(fixtures.begin()));
 
-    CMachineState machine;
-	for (std::list<CFixture *>::const_iterator l_itFixture = fixtures.begin(); l_itFixture != fixtures.end(); l_itFixture++)
+    // Go through and probe each fixture (and the tool length switch) to determine the height offsets (if appropriate)
+	python << machine.ToolChangeMovement_Preamble(fixtures);
+
+	for (std::set<CFixture>::const_iterator l_itFixture = fixtures.begin(); l_itFixture != fixtures.end(); l_itFixture++)
 	{
         // And then all the rest of the operations.
 		for (OperationsMap_t::const_iterator l_itOperation = operations.begin(); l_itOperation != operations.end(); l_itOperation++)
@@ -916,31 +1414,43 @@ Python CProgram::RewritePythonProgram()
 
 			if(COperations::IsAnOperation(object->GetType()))
 			{
+				bool private_fixture_matches = false;
 			    bool already_processed = false;
 			    std::list<CFixture> private_fixtures = ((COp *) object)->PrivateFixtures();
 			    for (std::list<CFixture>::iterator itFix = private_fixtures.begin();
                         itFix != private_fixtures.end(); itFix++)
                 {
-                    if (machine.AlreadyProcessed(object->GetType(), object->m_id, *itFix)) already_processed = true;
+                    if (machine.AlreadyProcessed(object, *itFix)) already_processed = true;
+
+					// Check to see if this private fixture is the same as the one we're processing.  If it's not then
+					// don't process this time around.
+					if (*itFix == *l_itFixture)
+					{
+						private_fixture_matches = true;
+					}
                 }
 
                 if (private_fixtures.size() == 0)
                 {
                     // Make sure the public fixture is in place.
-                    python << machine.Fixture(*(*l_itFixture));
+                    python << machine.Fixture(*l_itFixture);
                 }
+				else
+				{
+					if (! private_fixture_matches) continue;	// Don't process this time around.
+				}
 
 				if ((! already_processed) &&
                     (((COp*)object)->m_active) &&
-                    (! machine.AlreadyProcessed(object->GetType(), object->m_id, *(*l_itFixture))))
+                    (! machine.AlreadyProcessed(object, *l_itFixture)))
 				{
 					python << ((COp*)object)->AppendTextToProgram( &machine );
-					machine.MarkAsProcessed(object->GetType(), object->m_id, machine.Fixture());
+					machine.MarkAsProcessed(object, machine.Fixture());
 				}
 			}
 		} // End for - operation
 	} // End for - fixture
-#endif
+
 	python << _T("program_end()\n");
 	m_python_program = python;
 	theApp.m_program_canvas->m_textCtrl->AppendText(python);
@@ -1080,12 +1590,6 @@ CMachine CProgram::GetMachine(const wxString& file_name)
 	if(machines.size() > 0)return machines[0];
 
 	CMachine machine;
-	machine.file_name = _T("not found");
-	machine.description = _T("not found");
-
-	CNCConfig config(ConfigScope());
-	config.Read(_T("safety_height_defined"), &machine.m_safety_height_defined, false);
-	config.Read(_T("safety_height"), &machine.m_safety_height, 0.0);
 
 	return machine;
 }
@@ -1107,7 +1611,7 @@ wxString CProgram::GetOutputFileName() const
 				path.Remove(offset); // chop off the end.
 			} // End if - then
 
-			path << _T(".tap");
+			path << _T(".ngc");
 			return(path);
 		} // End if - then
 		else
@@ -1154,22 +1658,18 @@ CSpeedReferences *CProgram::SpeedReferences()
     return m_speed_references;
 }
 
-#ifndef STABLE_OPS_ONLY
 CFixtures *CProgram::Fixtures()
 {
     if (m_fixtures == NULL) ReloadPointers();
     return m_fixtures;
 }
-#endif
 
 void CProgram::ReloadPointers()
 {
     for (HeeksObj *child = GetFirstChild(); child != NULL; child = GetNextChild())
 	{
 	    if (child->GetType() == ToolsType) m_tools = (CTools *) child;
-#ifndef STABLE_OPS_ONLY
 	    if (child->GetType() == FixturesType) m_fixtures = (CFixtures *) child;
-#endif
 	    if (child->GetType() == OperationsType) m_operations = (COperations *) child;
 	    if (child->GetType() == SpeedReferencesType) m_speed_references = (CSpeedReferences *) child;
 	    if (child->GetType() == NCCodeType) m_nc_code = (CNCCode *) child;
@@ -1183,9 +1683,7 @@ void CProgram::AddMissingChildren()
 
 	// make sure tools, operations, fixtures, etc. exist
 	if(m_tools == NULL){m_tools = new CTools; Add( m_tools, NULL );}
-#ifndef STABLE_OPS_ONLY
 	if(m_fixtures == NULL){m_fixtures = new CFixtures; Add( m_fixtures, NULL );}
-#endif
 	if(m_operations == NULL){m_operations = new COperations; Add( m_operations, NULL );}
 	if(m_speed_references == NULL){m_speed_references = new CSpeedReferences; Add( m_speed_references, NULL );}
 	if(m_nc_code == NULL){m_nc_code = new CNCCode; Add( m_nc_code, NULL );}
@@ -1202,7 +1700,10 @@ bool CProgram::operator==( const CProgram & rhs ) const
 	if (m_raw_material != rhs.m_raw_material) return(false);
 	if (m_machine != rhs.m_machine) return(false);
 	if (m_output_file != rhs.m_output_file) return(false);
+	if (m_emc2_variables_file_name != rhs.m_emc2_variables_file_name) return(false);
 	if (m_output_file_name_follows_data_file_name != rhs.m_output_file_name_follows_data_file_name) return(false);
+	if (m_use_internal_backplotting != rhs.m_use_internal_backplotting) return(false);
+	if (m_emc2_variables_units != rhs.m_emc2_variables_units) return(false);
 	if (m_script_edited != rhs.m_script_edited) return(false);
 	if (m_units != rhs.m_units) return(false);
 
@@ -1219,6 +1720,15 @@ bool CMachine::operator==( const CMachine & rhs ) const
 	if (m_safety_height_defined != rhs.m_safety_height_defined) return(false);
 	if (m_safety_height != rhs.m_safety_height) return(false);
 	if (m_clearance_height != rhs.m_clearance_height) return(false);
+	if (m_tool_change_movement != rhs.m_tool_change_movement) return(false);
+	if (m_tool_change_probe_depth != rhs.m_tool_change_probe_depth) return(false);
+	if (m_tool_length_switch_number != rhs.m_tool_length_switch_number) return(false);
+	if (m_fixture_probe_tool_number != rhs.m_fixture_probe_tool_number) return(false);
+	if (m_tool_change_probe_feed_rate != rhs.m_tool_change_probe_feed_rate) return(false);
+	if (m_nurbs_supported != rhs.m_nurbs_supported) return(false);
+	if (m_pause_after_tool_change != rhs.m_pause_after_tool_change) return(false);
+	if (m_skip_switch_and_fixture_probing_cycle != rhs.m_skip_switch_and_fixture_probing_cycle) return(false);
+	if (m_auto_check_design_rules != rhs.m_auto_check_design_rules) return(false);
 
 	return(true);
 }

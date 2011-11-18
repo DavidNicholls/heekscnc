@@ -49,7 +49,11 @@ const wxBitmap &CCuttingRate::GetIcon()
 	return *icon;
 }
 
-static void on_set_max_material_removal_rate(double value, HeeksObj* object){((CCuttingRate*)object)->m_max_material_removal_rate = value; ((CCuttingRate*)object)->ResetTitle(); }
+static void on_set_max_material_removal_rate(double value, HeeksObj* object)
+{
+	((CCuttingRate*)object)->m_max_material_removal_rate = value;
+	((CCuttingRate*)object)->ResetTitle();
+}
 
 void CCuttingRate::GetProperties(std::list<Property *> *list)
 {
@@ -128,34 +132,31 @@ HeeksObj* CCuttingRate::ReadFromXMLElement(TiXmlElement* element)
 }
 
 
-void CCuttingRate::OnEditString(const wxChar* str){
-        m_title.assign(str);
+void CCuttingRate::OnEditString(const wxChar* str)
+{
+    m_title.assign(str);
 	heeksCAD->Changed();
 }
 
 void CCuttingRate::ResetTitle()
 {
-#ifdef UNICODE
-	std::wostringstream l_ossTitle;
-#else
-	std::ostringstream l_ossTitle;
-#endif
+	wxString title;
 
-	l_ossTitle << "Brinell (" << m_brinell_hardness_of_raw_material << ") at ";
+	title << _("Brinell (") << m_brinell_hardness_of_raw_material << _(") at ");
 	if (theApp.m_program->m_units == 1.0)
 	{
 		// We're set to metric.  Just present the internal value.
-		l_ossTitle << m_max_material_removal_rate << " (mm^3/min)";
+		title << m_max_material_removal_rate << _(" (mm^3/min)");
 	} // End if - then
 	else
 	{
 		// We're set to imperial.  Convert the internal (metric) value for presentation.
 
 		double cubic_mm_per_cubic_inch = 25.4 * 25.4 * 25.4;
-		l_ossTitle << m_max_material_removal_rate / cubic_mm_per_cubic_inch << " (inches^3/min)";
+		title << m_max_material_removal_rate / cubic_mm_per_cubic_inch << _(" (inches^3/min)");
 	} // End if - else
 
-	OnEditString(l_ossTitle.str().c_str());
+	OnEditString(title.c_str());
 } // End ResetTitle() method
 
 bool CCuttingRate::operator== ( const CCuttingRate & rhs ) const

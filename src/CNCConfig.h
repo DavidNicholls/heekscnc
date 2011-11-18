@@ -12,7 +12,7 @@ class CNCConfig
 public:
 	CNCConfig(const wxString scope = _T("") ) : m_scope(scope)
 	{
-		m_pConfig = std::auto_ptr<wxConfig>(new wxConfig(wxString(_T("HeeksCNC"))));
+		m_pConfig = std::auto_ptr<wxConfig>(new wxConfig(wxString(_T("JDCNC"))));
 	}
 
 	~CNCConfig()

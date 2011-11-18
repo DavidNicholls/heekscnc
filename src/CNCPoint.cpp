@@ -13,6 +13,8 @@
 
 extern CHeeksCADInterface* heeksCAD;
 
+/* static */ double CNCPoint::s_tolerance = 0.0;
+
 
 CNCPoint::CNCPoint() : gp_Pnt(0.0, 0.0, 0.0)
 {
@@ -31,7 +33,11 @@ CNCPoint::CNCPoint( const gp_Pnt & rhs ) : gp_Pnt(rhs)
 
 double CNCPoint::Tolerance() const
 {
-	return(heeksCAD->GetTolerance());
+	if (s_tolerance <= 0.0)
+	{
+		s_tolerance = heeksCAD->GetTolerance();
+	}
+	return(s_tolerance);
 }
 
 double CNCPoint::Units() const

@@ -10,8 +10,11 @@
 
 #include "interface/ObjList.h"
 #include "PythonStuff.h"
+#include <set>
 
-// #define OP_SKETCHES_AS_CHILDREN
+#ifndef OP_SKETCHES_AS_CHILDREN
+	#define OP_SKETCHES_AS_CHILDREN
+#endif // OP_SKETCHES_AS_CHILDREN
 
 class CFixture;	// Forward declaration.
 class CMachineState;
@@ -19,14 +22,17 @@ class CMachineState;
 class COp : public ObjList
 {
 public:
+	typedef int ToolNumber_t;
+
 	wxString m_comment;
 	bool m_active; // don't make NC code, if this is not active
 	wxString m_title;
-	int m_tool_number;	// joins the m_tool_number in one of the CTool objects in the tools list.
+	int m_execution_order;	// Order by which the GCode sequences are generated.
+	ToolNumber_t m_tool_number;	// joins the m_tool_number in one of the CTool objects in the tools list.
 	int m_operation_type; // Type of operation (because GetType() overloading does not allow this class to call the parent's method)
 
 	COp(const wxString& title, const int tool_number = 0, const int operation_type = UnknownType )
-            :m_active(true), m_title(title), m_tool_number(tool_number),
+            :m_active(true), m_title(title), m_execution_order(0), m_tool_number(tool_number),
             m_operation_type(operation_type)
     {
         ReadDefaultValues();
@@ -40,7 +46,7 @@ public:
 	void WriteBaseXML(TiXmlElement *element);
 	void ReadBaseXML(TiXmlElement* element);
 	const wxBitmap& GetInactiveIcon();
-	const wxChar* GetShortString(void)const{return m_title.c_str();}
+	virtual const wxChar* GetShortString(void)const{return m_title.c_str();}
 	bool CanEditString(void)const{return true;}
 	void OnEditString(const wxChar* str);
 	void GetTools(std::list<Tool*>* t_list, const wxPoint* p);
@@ -49,11 +55,11 @@ public:
 	virtual void WriteDefaultValues();
 	virtual void ReadDefaultValues();
 	virtual Python AppendTextToProgram( CMachineState *pMachineState );
-#ifndef STABLE_OPS_ONLY
 	virtual std::list<CFixture> PrivateFixtures();
 	virtual unsigned int MaxNumberOfPrivateFixtures() const { return(1); }
-#endif
 	virtual bool UsesTool(){return true;} // some operations don't use the tool number
+	virtual std::set<ToolNumber_t> GetMachineTools() const;
+	virtual void OnSetTool(const ToolNumber_t new_tool_number) { }
 
 	void ReloadPointers() { ObjList::ReloadPointers(); }
 
@@ -62,7 +68,8 @@ public:
 	// profile operation as a reference then it should not have a depth value that is deeper
 	// than the profile operation.
 	// The list of strings provides a description of what was changed.
-	virtual std::list<wxString> DesignRulesAdjustment(const bool apply_changes) { std::list<wxString> empty; return(empty); }
+	virtual std::list<wxString> DesignRulesAdjustment(const bool apply_changes);
+	virtual wxString DesignRulesPreamble() const;
 
 	bool operator==(const COp & rhs) const;
 	bool operator!=(const COp & rhs) const { return(! (*this == rhs)); }

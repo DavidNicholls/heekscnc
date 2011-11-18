@@ -6,16 +6,28 @@ class Creator(iso.Creator):
 	def init(self): 
 		iso.Creator.init(self) 
 
-	def SPACE(self): return('')
-        def TAP(self): return('G33.1')
-        def TAP_DEPTH(self, format, depth): return(self.SPACE() + 'K' + (format.string(depth)))
+	def SPACE(self): return(' ')
+	# def TAP(self): return('G33.1')
+	# def TAP_DEPTH(self, depth): return(self.SPACE() + 'K' + (self.fmt.string(depth)))
 	def BORE_FEED_OUT(self): return('G85')
 	def BORE_SPINDLE_STOP_RAPID_OUT(self): return('G86')
-	def BORE_DWELL_FEED_OUT(self, format, dwell): return('G89') + self.SPACE() + (format.string(dwell))
+	def BORE_DWELL_FEED_OUT(self, format, dwell): return('G89') + self.SPACE() + (format % dwell)
 	def FEEDRATE(self): return((self.SPACE() + ' F'))
+	def COMMENT(self,comment):
+		# Replace any embedded round brackets with curly braces so that the EMC2 GCode
+		# interpreter will not have trouble with the nested comment format.
+		_comment = comment.replace('(','{')
+		_comment = _comment.replace(')','}')
+		return( ('(%s)' % _comment ) )
+
 
 	def program_begin(self, id, comment):
 		self.write( ('(' + comment + ')' + '\n') )
+		self.write_blocknum()
+		self.write( self.DISABLE_TOOL_LENGTH_COMPENSATION() + '\t(Ensure tool length compensation is OFF)\n' )
+		self.tool_length_compenstation_enabled = False
+		self.write_blocknum()
+		self.write((self.REMOVE_TEMPORARY_COORDINATE_SYSTEM() + '\t(Ensure no temporary coordinate systems are in effect)\n'))
 
  ############################################################################
     ##  Settings
@@ -24,11 +36,13 @@ class Creator(iso.Creator):
             self.write_blocknum()
             self.write( self.IMPERIAL() + '\t (Imperial Values)\n')
             self.fmt.number_of_decimal_places = 4
+	    self.gcode_is_metric = False
 
 	def metric(self):
             self.write_blocknum()
             self.fmt.number_of_decimal_places = 3
             self.write( self.METRIC() + '\t (Metric Values)\n' )
+	    self.gcode_is_metric = True
 
 	def absolute(self):
 		self.write_blocknum()
@@ -64,6 +78,7 @@ class Creator(iso.Creator):
 	# This is the coordinate system we're using.  G54->G59, G59.1, G59.2, G59.3
 	# These are selected by values from 1 to 9 inclusive.
 	def workplane(self, id):
+		self.current_workplane = id
 		if ((id >= 1) and (id <= 6)):
 			self.write_blocknum()
 			self.write( (self.WORKPLANE() % (id + self.WORKPLANE_BASE())) + '\t (Select Relative Coordinate System)\n')
@@ -286,6 +301,14 @@ class Creator(iso.Creator):
 		self.write_blocknum()
 		self.write('(LOG,' + message + ')\n')
 		
+	def message(self, text=None ):
+		# Replace any embedded round brackets with curly braces so that the EMC2 GCode
+		# interpreter will not have trouble with the nested comment format.
+		_message = text.replace('(','{')
+		_message = _message.replace(')','}')
+		self.write_blocknum()
+		self.write('(MSG,' + _message + ')\n')
+		
 	def start_CRC(self, left = True, radius = 0.0):
 		if self.t == None:
 			raise "No tool specified for start_CRC()"
@@ -303,137 +326,109 @@ class Creator(iso.Creator):
 		self.write('\t (end cutter radius compensation)\n')
 		
 	
-	
-    # The drill routine supports drilling (G81), drilling with dwell (G82) and peck drilling (G83).
-    # The x,y,z values are INITIAL locations (above the hole to be made.  This is in contrast to
-    # the Z value used in the G8[1-3] cycles where the Z value is that of the BOTTOM of the hole.
-    # Instead, this routine combines the Z value and the depth value to determine the bottom of
-    # the hole.
-    #
-    # The standoff value is the distance up from the 'z' value (normally just above the surface) where the bit retracts
-    # to in order to clear the swarf.  This combines with 'z' to form the 'R' value in the G8[1-3] cycles.
-    #
-    # The peck_depth value is the incremental depth (Q value) that tells the peck drilling
-    # cycle how deep to go on each peck until the full depth is achieved.
-    #
-    # NOTE: This routine forces the mode to absolute mode so that the values  passed into
-    # the G8[1-3] cycles make sense.  I don't know how to find the mode to revert it so I won't
-    # revert it.  I must set the mode so that I can be sure the values I'm passing in make
-    # sense to the end-machine.
-    #
-    # extended argument list for EMC boring mah 30102001
-    #    retract_mode : 0 - rapid retract, 1 - feed retract
-    #   spindle_mode ;     if true, stop spindle at bottom, otherwise keep runnung
+	# G33.1 tapping with EMC for now
+	# unsynchronized (chuck) taps NIY (tap_mode = 1)
+    
+	def oldtap(self, x=None, y=None, z=None, zretract=None, depth=None, standoff=None, dwell_bottom=None, pitch=None, stoppos=None, spin_in=None, spin_out=None, tap_mode=None, direction=None):
+		# mystery parameters: 
+		# zretract=None, dwell_bottom=None,pitch=None, stoppos=None, spin_in=None, spin_out=None):
+		# I dont see how to map these to EMC Gcode
 
-	def drill(self, x=None, y=None, z=None, depth=None, standoff=None, dwell=None, peck_depth=None, retract_mode=None, spindle_mode=None):
-
-		if standoff == None:		
-			# This is a bad thing.  All the drilling cycles need a retraction (and starting) height.
+		if (standoff == None):		
+			# This is a bad thing.  All the drilling cycles need a retraction (and starting) height.		
 			return
-
 		if (z == None): 
-			return	# We need a Z value as well.  This input parameter represents the top of the hole
-								 
+			return	# We need a Z value as well.  This input parameter represents the top of the hole 
+		if (pitch == None): 
+			return	# We need a pitch value.
+		if (direction == None): 
+			return	# We need a direction value.
+
+		if (tap_mode != 0):
+			raise "only rigid tapping currently supported"
+
 		self.write_preps()
 		self.write_blocknum()				
-		
-		if (peck_depth != 0):
-			if spindle_mode == 1:
-				raise "cannot stop spindle at bottom while peck drilling"				 
-			if retract_mode == 1:
-				raise "cannot feed retract while peck drilling" 
-			
-			# We're pecking.  Let's find a tree. 
-			if self.drill_modal:	   
-				if  self.PECK_DRILL() + self.PECK_DEPTH(self.fmt, peck_depth) != self.prev_drill:
-					self.write(self.PECK_DRILL() + self.PECK_DEPTH(self.fmt, peck_depth))  
+		self.write_spindle()
+		self.write('\n')
 
-					self.prev_drill = self.PECK_DRILL() + self.PECK_DEPTH(self.fmt, peck_depth)
-			else:	   
-				self.write(self.PECK_DRILL() + self.PECK_DEPTH(self.fmt, peck_depth)) 
-						   
-		else:	  
-			if (spindle_mode == 1) or (retract_mode == 1):
-				  # this is a boring cycle.
-			
-				if (spindle_mode == 0): # keep spindle running, feed retract
-					if (dwell == 0):
-						self.write(self.BORE_FEED_OUT())
-					else:
-						self.write(self.BORE_DWELL_FEED_OUT(self.FORMAT_DWELL(), dwell))
-				else:
-					# stop spindle at bottom 
-					self.write(self.BORE_SPINDLE_STOP_RAPID_OUT())
-					if (dwell > 0):
-						self.write( self.SPACE() + self.FORMAT_DWELL() % dwell)	   
-			  
-			# We're either just drilling or drilling with dwell.		
-			else:
-				if (dwell == 0):		
-					# We're just drilling. 
-					if self.drill_modal:	   
-						if  self.DRILL() != self.prev_drill:
-							self.write(self.DRILL())  
-							self.prev_drill = self.DRILL()
-					else:
-						self.write(self.DRILL())
-				else:		
-					# We're drilling with dwell.
-					if self.drill_modal:	   
-						if  self.DRILL_WITH_DWELL(self.FORMAT_DWELL(), dwell) != self.prev_drill:
-							self.write(self.DRILL_WITH_DWELL(self.FORMAT_DWELL(), dwell))  
-							self.prev_drill = self.DRILL_WITH_DWELL(self.FORMAT_DWELL(), dwell)
-					else:
-						self.write(self.DRILL_WITH_DWELL(self.FORMAT_DWELL(), dwell))
+		# rapid to starting point; z first, then x,y iff given
 
-		
-				#self.write(self.DRILL_WITH_DWELL(self.FORMAT_DWELL(),dwell))				
-	
-		   # Set the retraction point to the 'standoff' distance above the starting z height.		
+		# Set the retraction point to the 'standoff' distance above the starting z height.		
 		retract_height = z + standoff		
-		if (x != None):		
-			dx = x - self.x		
-			self.write(self.X() + (self.fmt.string(x)))		
-			self.x = x 
-	   
-		if (y != None):		
-			dy = y - self.y		
-			self.write(self.Y() + (self.fmt.string(y)))		
-			self.y = y
-					  
-		dz = (z + standoff) - self.z # In the end, we will be standoff distance above the z value passed in.
 
-		if self.drill_modal:
-			if z != self.prev_z:
-				self.write(self.Z() + (self.fmt.string(z - depth)))
-				self.prev_z = z
-		else:			 
-			 self.write(self.Z() + (self.fmt.string(z - depth)))	# This is the 'z' value for the bottom of the hole.
-		self.z = (z + standoff)			# We want to remember where z is at the end (at the top of the hole)
+		# unsure if this is needed:
+		if self.z != retract_height:
+				self.rapid(z = retract_height)
 
-		if self.drill_modal:
-			if self.prev_retract != self.RETRACT(self.fmt, retract_height) :
-				self.write(self.RETRACT(self.fmt, retract_height))			   
-				self.prev_retract = self.RETRACT(self.fmt, retract_height)
-		else:			  
-			self.write(self.RETRACT(self.fmt, retract_height))
-		   
-		if (self.fhv) : 
-			self.calc_feedrate_hv(math.sqrt(dx * dx + dy * dy), math.fabs(dz))
+		# then continue to x,y if given
+		if (x != None) or (y != None):
+				self.write_blocknum()				
+				self.write(self.RAPID() )		   
 
-		if self.drill_modal:
-			if (self.FEEDRATE() + self.ffmt.string(self.fv) + self.SPACE()) != self.prev_f:
-			   self.write(self.FEEDRATE() + self.ffmt.string(self.fv) + self.SPACE())		
-			   self.prev_f = self.FEEDRATE() + self.ffmt.stirng(self.fv) + self.SPACE()
-		else: 
-			self.write(self.FEEDRATE() + (self.ffmt.string(self.fv) + self.SPACE())	)		
-		self.write_spindle()			
+				if (x != None):		
+						self.write(self.X() + self.fmt.string(x))		
+						self.x = x 
+
+				if (y != None):		
+						self.write(self.Y() + self.fmt.string(y))		
+						self.y = y
+				self.write('\n')
+       
+		self.write_blocknum()				
+		self.write( self.TAP() )
+		self.write( self.TAP_DEPTH(pitch) + self.SPACE() )			
+		self.write(self.Z() + self.fmt.string(z - depth))	# This is the 'z' value for the bottom of the tap.
 		self.write_misc()	
 		self.write('\n')
-		
+
+		self.z = retract_height	# this cycle returns to the start position, so remember that as z value
 
 	def tool_defn(self, id, name='', radius=None, length=None, gradient=None):
 		pass
-			
+
+	def nurbs_begin_definition(self, id, degree=None, x=None, y=None, weight=None):
+		self.write_blocknum()
+		self.write( self.NURBS_BEGIN() )
+		self.write( self.SPACE() + self.DEGREE() + (self.fmt.string(degree + 1) ) )
+		self.write( self.SPACE() + self.X() + (self.fmt.string(x) ) )
+		self.write( self.SPACE() + self.Y() + (self.fmt.string(y) ) )
+		self.write( self.SPACE() + self.WEIGHT() + (self.fmt.string(weight) ) )
+		self.write( '\n')
+
+	def nurbs_add_pole(self, id, x=None, y=None, weight=None):
+		self.write_blocknum()
+		self.write( self.SPACE() + self.X() + (self.fmt.string(x) ) )
+		self.write( self.SPACE() )
+		self.write( self.SPACE() + self.Y() + (self.fmt.string(y) ) )
+		self.write( self.SPACE() )
+		self.write( self.SPACE() + self.WEIGHT() + (self.fmt.string(weight) ) )
+		self.write( '\n')
+
+	def nurbs_end_definition(self, id):
+		self.write_blocknum()
+		self.write( self.NURBS_END() )
+		self.write( '\n')
+
+	def measure_and_offset_tool(self, distance=None, switch_offset_variable_name=None, fixture_offset_variable_name=None, feed_rate=None ):
+	        self.write_blocknum()
+		self.write(self.DISABLE_TOOL_LENGTH_COMPENSATION() + ' (Turn OFF tool length compensation)\n');
+		self.tool_length_compenstation_enabled = False
+
+		self.write_blocknum()
+		self.write(self.SPACE() + self.SET_TEMPORARY_COORDINATE_SYSTEM() + ' X 0 Y 0 Z 0\t(Temporarily make this the origin)\n')
+
+		# Probe downwards until we hit the tool length measurement switch
+		self.write_blocknum()
+		self.write((self.PROBE_TOWARDS_WITH_SIGNAL() + self.SPACE() + (self.Z() + (self.fmt.string(-1.0 * float(distance))))) )
+		self.write( self.SPACE() + self.FEEDRATE() + self.fmt.string(feed_rate) + '\t(Probe down to find the tool length switch)\n' )
+
+		self.write_blocknum()
+		self.write(self.ENABLE_TOOL_LENGTH_COMPENSATION() + self.SPACE() + self.Z() + '[#5063 - #' + switch_offset_variable_name + ']' + ' (Turn ON tool length compensation)\n');
+		self.tool_length_compenstation_enabled = True
+
+		self.write_blocknum()
+		self.write((self.REMOVE_TEMPORARY_COORDINATE_SYSTEM() + '\t(Ensure no temporary coordinate systems are in effect)\n'))
+
 nc.creator = Creator()
 

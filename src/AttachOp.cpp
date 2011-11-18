@@ -121,7 +121,6 @@ Python CAttachOp::AppendTextToProgram(CMachineState *pMachineState)
 			{
 				solids.push_back(object);
 			}
-#ifndef STABLE_OPS_ONLY
 			else
 			{
 				// Need to rotate a COPY of the solid by the fixture settings.
@@ -142,7 +141,6 @@ Python CAttachOp::AppendTextToProgram(CMachineState *pMachineState)
 					copies_to_delete.push_back(copy);
 				}
 			}
-#endif
 		} // End if - then
 	} // End for
 

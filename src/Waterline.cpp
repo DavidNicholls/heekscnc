@@ -7,7 +7,6 @@
 
 #include "stdafx.h"
 
-#ifndef STABLE_OPS_ONLY
 #include "Waterline.h"
 #include "CNCConfig.h"
 #include "ProgramCanvas.h"
@@ -30,7 +29,7 @@ static void on_set_minx(double value, HeeksObj* object){((CWaterline*)object)->m
 static void on_set_maxx(double value, HeeksObj* object){((CWaterline*)object)->m_params.m_box.m_x[3] = value;heeksCAD->Changed();}
 static void on_set_miny(double value, HeeksObj* object){((CWaterline*)object)->m_params.m_box.m_x[1] = value;heeksCAD->Changed();}
 static void on_set_maxy(double value, HeeksObj* object){((CWaterline*)object)->m_params.m_box.m_x[4] = value;heeksCAD->Changed();}
-//static void on_set_step_over(double value, HeeksObj* object){((CWaterline*)object)->m_params.m_step_over = value;heeksCAD->Changed();}
+static void on_set_step_over(double value, HeeksObj* object){((CWaterline*)object)->m_params.m_step_over = value;heeksCAD->Changed();}
 static void on_set_material_allowance(double value, HeeksObj* object){((CWaterline*)object)->m_params.m_material_allowance = value;heeksCAD->Changed();}
 static void on_set_tolerance(double value, HeeksObj* object){((CWaterline*)object)->m_params.m_tolerance = value;heeksCAD->Changed();}
 
@@ -40,7 +39,7 @@ void CWaterlineParams::GetProperties(CWaterline* parent, std::list<Property *> *
 	list->push_back(new PropertyLength(_("maximum x"), m_box.m_x[3], parent, on_set_maxx));
 	list->push_back(new PropertyLength(_("minimum y"), m_box.m_x[1], parent, on_set_miny));
 	list->push_back(new PropertyLength(_("maximum y"), m_box.m_x[4], parent, on_set_maxy));
-	//list->push_back(new PropertyLength(_("step over"), m_step_over, parent, on_set_step_over));
+	list->push_back(new PropertyLength(_("step over"), m_step_over, parent, on_set_step_over));
 	list->push_back(new PropertyLength(_("material allowance"), m_material_allowance, parent, on_set_material_allowance));
 	list->push_back(new PropertyLength(_("tolerance"), m_tolerance, parent, on_set_tolerance));
 }
@@ -54,7 +53,7 @@ void CWaterlineParams::WriteXMLAttributes(TiXmlNode *root)
 	element->SetDoubleAttribute( "maxx", m_box.m_x[3]);
 	element->SetDoubleAttribute( "miny", m_box.m_x[1]);
 	element->SetDoubleAttribute( "maxy", m_box.m_x[4]);
-	//element->SetDoubleAttribute( "step_over", m_step_over);
+	element->SetDoubleAttribute( "step_over", m_step_over);
 	element->SetDoubleAttribute( "material_allowance", m_material_allowance);
 	element->SetDoubleAttribute( "tolerance", m_tolerance);
 }
@@ -66,7 +65,7 @@ void CWaterlineParams::ReadFromXMLElement(TiXmlElement* pElem)
 	pElem->Attribute("maxx", &m_box.m_x[3]);
 	pElem->Attribute("miny", &m_box.m_x[1]);
 	pElem->Attribute("maxy", &m_box.m_x[4]);
-	//pElem->Attribute("step_over", &m_step_over);
+	pElem->Attribute("step_over", &m_step_over);
 	pElem->Attribute("material_allowance", &m_material_allowance);
 	pElem->Attribute("tolerance", &m_tolerance);
 }
@@ -250,10 +249,9 @@ Python CWaterline::AppendTextToProgram(CMachineState *pMachineState)
 	heeksCAD->Changed();
 
     python << _T("ocl_funcs.waterline( filepath = ") << PythonString(filepath.GetFullPath()) << _T(", ")
-            << _T("tool_diameter = ") << pTool->CuttingRadius() * 2.0 / theApp.m_program->m_units << _T(", ")
+            << _T("tool_diameter = ") << pTool->CuttingRadius() * 2.0 << _T(", ")
             << _T("corner_radius = ") << pTool->m_params.m_corner_radius / theApp.m_program->m_units << _T(", ")
-            << _T("cutter_length = ") << pTool->m_params.m_tool_length_offset  / theApp.m_program->m_units << _T(", ")
-            //<< _T("step_over = ") << m_params.m_step_over / theApp.m_program->m_units << _T(", ")
+            << _T("step_over = ") << m_params.m_step_over / theApp.m_program->m_units << _T(", ")
             << _T("mat_allowance = ") << m_params.m_material_allowance / theApp.m_program->m_units << _T(", ")
             << _T("clearance = clearance, ")
             << _T("rapid_safety_space = rapid_safety_space, ")
@@ -265,7 +263,7 @@ Python CWaterline::AppendTextToProgram(CMachineState *pMachineState)
             << _T("y0 = ") << m_params.m_box.m_x[1] / theApp.m_program->m_units << _T(", ")
             << _T("x1 = ") << m_params.m_box.m_x[3] / theApp.m_program->m_units << _T(", ")
             << _T("y1 = ") << m_params.m_box.m_x[4] / theApp.m_program->m_units << _T(", ")
-            << _T("tolerance = ") << m_params.m_tolerance / theApp.m_program->m_units<< _T(")\n");
+            << _T("tolerance = ") << m_params.m_tolerance << _T(")\n");
 
 	return(python);
 }
@@ -379,7 +377,7 @@ void CWaterline::WriteDefaultValues()
 	config.Write(wxString(GetTypeString()) + _T("BoxYMin"), m_params.m_box.m_x[1]);
 	config.Write(wxString(GetTypeString()) + _T("BoxXMax"), m_params.m_box.m_x[3]);
 	config.Write(wxString(GetTypeString()) + _T("BoxYMax"), m_params.m_box.m_x[4]);
-	//config.Write(wxString(GetTypeString()) + _T("StepOver"), m_params.m_step_over);
+	config.Write(wxString(GetTypeString()) + _T("StepOver"), m_params.m_step_over);
 	config.Write(wxString(GetTypeString()) + _T("MatAllowance"), m_params.m_material_allowance);
 	config.Write(wxString(GetTypeString()) + _T("Tolerance"), m_params.m_tolerance);
 }
@@ -393,7 +391,7 @@ void CWaterline::ReadDefaultValues()
 	config.Read(wxString(GetTypeString()) + _T("BoxYMin"), &m_params.m_box.m_x[1], -7.0);
 	config.Read(wxString(GetTypeString()) + _T("BoxXMax"), &m_params.m_box.m_x[3], 7.0);
 	config.Read(wxString(GetTypeString()) + _T("BoxYMax"), &m_params.m_box.m_x[4], 7.0);
-	//config.Read(wxString(GetTypeString()) + _T("StepOver"), &m_params.m_step_over, 1.0);
+	config.Read(wxString(GetTypeString()) + _T("StepOver"), &m_params.m_step_over, 1.0);
 	config.Read(wxString(GetTypeString()) + _T("MatAllowance"), &m_params.m_material_allowance, 0.0);
 	config.Read(wxString(GetTypeString()) + _T("Tolerance"), &m_params.m_tolerance, 0.01);
 }
@@ -460,7 +458,7 @@ void CWaterline::GetTools(std::list<Tool*>* t_list, const wxPoint* p)
 bool CWaterlineParams::operator==( const CWaterlineParams & rhs ) const
 {
 	if (m_box != rhs.m_box) return(false);
-	//if (m_step_over != rhs.m_step_over) return(false);
+	if (m_step_over != rhs.m_step_over) return(false);
 	if (m_material_allowance != rhs.m_material_allowance) return(false);
 
 	return(true);
@@ -474,4 +472,3 @@ bool CWaterline::operator==( const CWaterline & rhs ) const
 
 	return(CDepthOp::operator==(rhs));
 }
-#endif

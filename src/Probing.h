@@ -83,9 +83,11 @@ public:
 	CProbing( const wxString title, const int tool_number, const int operation_type):CSpeedOp(title, tool_number, operation_type)
 	{
 		m_speed_op_params.m_spindle_speed = 0;	// We don't want the spindle to move while we're probing.
-		COp::m_active = 0;	// We don't want the normal GCode generation routines to include us.
+		COp::m_active = true;
 		m_depth = 10.0;	// mm
 		m_distance = 50.0;	// mm
+
+		ReadFromConfig();
 
 		// If the tool number has been defined as a probe already, use half the probe's length
 		// as the depth to plunge (by default)
@@ -131,7 +133,12 @@ public:
 	wxString GetOutputFileName(const wxString extension, const bool filename_only);
 	Python GeneratePythonPreamble();
 
+	std::list<wxString> DesignRulesAdjustment(const bool apply_changes);
+
 	virtual void GenerateMeaningfullName();
+	const wxString ConfigPrefix(void)const{return _T("Probing");}
+	void ReadFromConfig();
+	void WriteToConfig();
 
 	double m_depth;			// How far to drop down from the current position before starting to probe inwards.
 	double m_distance;	// Distance from starting point outwards before dropping down and probing in.
@@ -389,6 +396,8 @@ public:
 	    m_for_fixture_measurement = true;
 		m_num_x_points = 2;
 		m_num_y_points = 2;
+
+		ReadFromConfig();
 		GenerateMeaningfullName();
 	}
 
@@ -399,6 +408,9 @@ public:
 	int GetType()const{return ProbeGridType;}
 	void WriteXML(TiXmlNode *root);
 	const wxChar* GetTypeString(void)const{return _T("ProbeGrid");}
+	const wxString ConfigPrefix(void)const{return _T("ProbeGrid");}
+	void ReadFromConfig();
+	void WriteToConfig();
 
 	void GetProperties(std::list<Property *> *list);
 	HeeksObj *MakeACopy(void)const;
@@ -438,6 +450,8 @@ public:
 		m_direction = int(eOutside);
 		m_number_of_points = 2;
 		m_alignment = int(eXAxis);
+
+		ReadFromConfig();
 		GenerateMeaningfullName();
 	}
 
@@ -448,6 +462,9 @@ public:
 	int GetType()const{return ProbeCentreType;}
 	void WriteXML(TiXmlNode *root);
 	const wxChar* GetTypeString(void)const{return _T("ProbeCentre");}
+	const wxString ConfigPrefix(void)const{return _T("ProbeCentre");}
+	void ReadFromConfig();
+	void WriteToConfig();
 
 	void GetProperties(std::list<Property *> *list);
 	HeeksObj *MakeACopy(void)const;
@@ -506,6 +523,8 @@ public:
 		m_final_coordinate.SetX(0.0);
 		m_final_coordinate.SetY(0.0);
 		m_final_coordinate.SetZ(0.0);
+
+		ReadFromConfig();
 	}
 
 	CProbe_Edge( const CProbe_Edge & rhs );
@@ -515,6 +534,9 @@ public:
 	int GetType()const{return ProbeEdgeType;}
 	void WriteXML(TiXmlNode *root);
 	const wxChar* GetTypeString(void)const{return _T("ProbeEdge");}
+	const wxString ConfigPrefix(void)const{return _T("ProbeEdge");}
+	void ReadFromConfig();
+	void WriteToConfig();
 
 	void GetProperties(std::list<Property *> *list);
 	HeeksObj *MakeACopy(void)const;

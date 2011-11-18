@@ -50,17 +50,13 @@ CProfileParams::CProfileParams()
 	m_start[0] = m_start[1] = m_start[2] = 0.0;
 	m_end[0] = m_end[1] = m_end[2] = 0.0;
 
-    m_extend_at_start = 0.0; 
-    m_extend_at_end = 0.0; 
-
-    m_lead_in_line_len = 1.0;
-    m_lead_out_line_len= 1.0;
+    m_extend_at_start = 0.0;
+    m_extend_at_end = 0.0;
 
 	m_end_beyond_full_profile = false;
 	m_sort_sketches = 1;
 	m_offset_extra = 0.0;
 	m_do_finishing_pass = false;
-	m_only_finishing_pass = false;
 	m_finishing_h_feed_rate = 0.0;
 	m_finishing_cut_mode = eConventional;
 	m_finishing_step_down = 1.0;
@@ -101,11 +97,6 @@ static void on_set_end(const double* vt, HeeksObj* object){memcpy(((CProfile*)ob
 static void on_set_extend_at_start(double value, HeeksObj* object){((CProfile*)object)->m_profile_params.m_extend_at_start = value; ((CProfile*)object)->WriteDefaultValues();}
 static void on_set_extend_at_end(double value, HeeksObj* object){((CProfile*)object)->m_profile_params.m_extend_at_end = value; ((CProfile*)object)->WriteDefaultValues();}
 
-//lead in lead out line length
-static void on_set_lead_in_line_len(double value, HeeksObj* object){((CProfile*)object)->m_profile_params.m_lead_in_line_len = value; ((CProfile*)object)->WriteDefaultValues();}
-static void on_set_lead_out_line_len(double value, HeeksObj* object){((CProfile*)object)->m_profile_params.m_lead_out_line_len = value; ((CProfile*)object)->WriteDefaultValues();}
-
-
 static void on_set_end_beyond_full_profile(bool value, HeeksObj* object){((CProfile*)object)->m_profile_params.m_end_beyond_full_profile = value;}
 static void on_set_sort_sketches(const int value, HeeksObj* object)
 {
@@ -114,7 +105,6 @@ static void on_set_sort_sketches(const int value, HeeksObj* object)
 }
 static void on_set_offset_extra(const double value, HeeksObj* object){((CProfile*)object)->m_profile_params.m_offset_extra = value;((CProfile*)object)->WriteDefaultValues();}
 static void on_set_do_finishing_pass(bool value, HeeksObj* object){((CProfile*)object)->m_profile_params.m_do_finishing_pass = value; heeksCAD->RefreshProperties();((CProfile*)object)->WriteDefaultValues();}
-static void on_set_only_finishing_pass(bool value, HeeksObj* object){((CProfile*)object)->m_profile_params.m_only_finishing_pass = value; heeksCAD->RefreshProperties();((CProfile*)object)->WriteDefaultValues();}
 static void on_set_finishing_h_feed_rate(double value, HeeksObj* object)
 {
 	((CProfile*)object)->m_profile_params.m_finishing_h_feed_rate = value;
@@ -225,19 +215,14 @@ void CProfileParams::GetProperties(CProfile* parent, std::list<Property *> *list
 		// roll on radius
 		list->push_back(new PropertyLength(_("roll radius"), m_auto_roll_radius, parent, on_set_roll_radius));
 	} // End if - else
-    
+
     list->push_back(new PropertyLength(_("extend before start"), m_extend_at_start, parent, on_set_extend_at_start));
     list->push_back(new PropertyLength(_("extend past end"), m_extend_at_end, parent, on_set_extend_at_end));
-
-    //lead in lead out line length
-    list->push_back(new PropertyLength(_("lead in line length"), m_lead_in_line_len, parent, on_set_lead_in_line_len));
-    list->push_back(new PropertyLength(_("lead out line length"), m_lead_out_line_len, parent, on_set_lead_out_line_len));
 
 	list->push_back(new PropertyLength(_("offset_extra"), m_offset_extra, parent, on_set_offset_extra));
 	list->push_back(new PropertyCheck(_("do finishing pass"), m_do_finishing_pass, parent, on_set_do_finishing_pass));
 	if(m_do_finishing_pass)
 	{
-		list->push_back(new PropertyCheck(_("only finishing pass"), m_only_finishing_pass, parent, on_set_only_finishing_pass));
 		list->push_back(new PropertyLength(_("finishing feed rate"), m_finishing_h_feed_rate, parent, on_set_finishing_h_feed_rate));
 
 		{
@@ -294,15 +279,11 @@ void CProfileParams::WriteXMLAttributes(TiXmlNode *root)
 	std::ostringstream l_ossValue;
 	l_ossValue << m_sort_sketches;
 	element->SetAttribute( "sort_sketches", l_ossValue.str().c_str());
+//df
 	element->SetDoubleAttribute( "extend_at_start", m_extend_at_start);
-    element->SetDoubleAttribute( "extend_at_end",m_extend_at_end);
-
-	element->SetDoubleAttribute( "lead_in_line_len", m_lead_in_line_len);
-    element->SetDoubleAttribute( "lead_out_line_len",m_lead_out_line_len);
 
 	element->SetDoubleAttribute( "offset_extra", m_offset_extra);
 	element->SetAttribute( "do_finishing_pass", m_do_finishing_pass ? 1:0);
-	element->SetAttribute( "only_finishing_pass", m_only_finishing_pass ? 1:0);
 	element->SetDoubleAttribute( "finishing_feed_rate", m_finishing_h_feed_rate);
 	element->SetAttribute( "finish_cut_mode", m_finishing_cut_mode);
 	element->SetDoubleAttribute( "finishing_step_down", m_finishing_step_down);
@@ -336,16 +317,9 @@ void CProfileParams::ReadFromXMLElement(TiXmlElement* pElem)
 	if(pElem->Attribute("sort_sketches"))m_sort_sketches = atoi(pElem->Attribute("sort_sketches"));
 	pElem->Attribute("offset_extra", &m_offset_extra);
 	if(pElem->Attribute("do_finishing_pass", &int_for_bool))m_do_finishing_pass = (int_for_bool != 0);
-	if(pElem->Attribute("only_finishing_pass", &int_for_bool))m_only_finishing_pass = (int_for_bool != 0);
 	pElem->Attribute("finishing_feed_rate", &m_finishing_h_feed_rate);
 	if(pElem->Attribute("finish_cut_mode", &int_for_enum))m_finishing_cut_mode = (eCutMode)int_for_enum;
 	pElem->Attribute("finishing_step_down", &m_finishing_step_down);
-    pElem->Attribute("extend_at_start", &m_extend_at_start);
-    pElem->Attribute("extend_at_end",&m_extend_at_end);
-
-    pElem->Attribute("lead_in_line_len", &m_lead_in_line_len);
-    pElem->Attribute("lead_out_line_len",&m_lead_out_line_len);
-
 }
 
 CProfile::CProfile( const CProfile & rhs ) : CDepthOp(rhs)
@@ -477,11 +451,7 @@ Python CProfile::WriteSketchDefn(HeeksObj* sketch, CMachineState *pMachineState,
 				{
 					if(reversed)span_object->GetEndPoint(s);
 					else span_object->GetStartPoint(s);
-#ifdef STABLE_OPS_ONLY
-					CNCPoint start(s);
-#else
 					CNCPoint start(pMachineState->Fixture().Adjustment(s));
-#endif
 
 					python << _T("curve.append(area.Point(");
 					python << start.X(true);
@@ -492,11 +462,7 @@ Python CProfile::WriteSketchDefn(HeeksObj* sketch, CMachineState *pMachineState,
 				}
 				if(reversed)span_object->GetStartPoint(e);
 				else span_object->GetEndPoint(e);
-#ifdef STABLE_OPS_ONLY
-				CNCPoint end(e);
-#else
 				CNCPoint end(pMachineState->Fixture().Adjustment( e ));
-#endif
 
 				if(type == LineType)
 				{
@@ -509,11 +475,7 @@ Python CProfile::WriteSketchDefn(HeeksObj* sketch, CMachineState *pMachineState,
 				else if(type == ArcType)
 				{
 					span_object->GetCentrePoint(c);
-#ifdef STABLE_OPS_ONLY
-					CNCPoint centre(c);
-#else
 					CNCPoint centre(pMachineState->Fixture().Adjustment(c));
-#endif
 
 					double pos[3];
 					heeksCAD->GetArcAxis(span_object, pos);
@@ -558,18 +520,12 @@ Python CProfile::WriteSketchDefn(HeeksObj* sketch, CMachineState *pMachineState,
 						points.push_back( std::make_pair(-1, gp_Pnt( c[0], c[1] + radius, c[2] )) ); // north
 					}
 
-#ifndef STABLE_OPS_ONLY
 					pMachineState->Fixture().Adjustment(c);
-#endif
 					CNCPoint centre(c);
 
 					for (std::list< std::pair<int, gp_Pnt > >::iterator l_itPoint = points.begin(); l_itPoint != points.end(); l_itPoint++)
 					{
-#ifdef STABLE_OPS_ONLY
-						CNCPoint pnt( l_itPoint->second );
-#else
 						CNCPoint pnt = pMachineState->Fixture().Adjustment( l_itPoint->second );
-#endif
 
 						python << (_T("curve.append(area.Vertex("));
 						python << l_itPoint->first << _T(", area.Point(");
@@ -613,9 +569,7 @@ Python CProfile::WriteSketchDefn(HeeksObj* sketch, CMachineState *pMachineState,
 					m_profile_params.m_start[1] / theApp.m_program->m_units,
 					0.0 );
 
-#ifndef STABLE_OPS_ONLY
 			starting = pMachineState->Fixture().Adjustment( starting );
-#endif
 
 			startx = starting.X();
 			starty = starting.Y();
@@ -641,9 +595,7 @@ Python CProfile::WriteSketchDefn(HeeksObj* sketch, CMachineState *pMachineState,
 					m_profile_params.m_end[1] / theApp.m_program->m_units,
 					0.0 );
 
-#ifndef STABLE_OPS_ONLY
 			finish = pMachineState->Fixture().Adjustment( finish );
-#endif
 
 			finishx = finish.X();
 			finishy = finish.Y();
@@ -762,12 +714,8 @@ Python CProfile::AppendTextForOneSketch(HeeksObj* object, CMachineState *pMachin
         python << _T("extend_at_start= ") << m_profile_params.m_extend_at_start / theApp.m_program->m_units << _T("\n");
         python << _T("extend_at_end= ") << m_profile_params.m_extend_at_end / theApp.m_program->m_units<< _T("\n");
 
-        //lead in lead out line length
-        python << _T("lead_in_line_len= ") << m_profile_params.m_lead_in_line_len / theApp.m_program->m_units << _T("\n");
-        python << _T("lead_out_line_len= ") << m_profile_params.m_lead_out_line_len / theApp.m_program->m_units<< _T("\n");
-
 		// profile the kurve
-		python << wxString::Format(_T("kurve_funcs.profile(curve, '%s', tool_diameter/2, offset_extra, roll_radius, roll_on, roll_off, rapid_safety_space, clearance, start_depth, step_down, final_depth,extend_at_start,extend_at_end,lead_in_line_len,lead_out_line_len )\n"), side_string.c_str());
+		python << wxString::Format(_T("kurve_funcs.profile(curve, '%s', tool_diameter/2, offset_extra, roll_radius, roll_on, roll_off, rapid_safety_space, clearance, start_depth, step_down, final_depth,extend_at_start,extend_at_end)\n"), side_string.c_str());
 	}
 	python << _T("absolute()\n");
 	return(python);
@@ -783,17 +731,10 @@ void CProfile::WriteDefaultValues()
 	config.Write(_T("RollRadius"), m_profile_params.m_auto_roll_radius);
 	config.Write(_T("OffsetExtra"), m_profile_params.m_offset_extra);
 	config.Write(_T("DoFinishPass"), m_profile_params.m_do_finishing_pass);
-	config.Write(_T("OnlyFinishPass"), m_profile_params.m_only_finishing_pass);
 	config.Write(_T("FinishFeedRate"), m_profile_params.m_finishing_h_feed_rate);
 	config.Write(_T("FinishCutMode"), m_profile_params.m_finishing_cut_mode);
 	config.Write(_T("FinishStepDown"), m_profile_params.m_finishing_step_down);
 	config.Write(_T("EndBeyond"), m_profile_params.m_end_beyond_full_profile);
-
-	config.Write(_T("ExtendAtStart"), m_profile_params.m_extend_at_start);
-	config.Write(_T("ExtendAtEnd"), m_profile_params.m_extend_at_end);
-	config.Write(_T("LeadInLineLen"), m_profile_params.m_lead_in_line_len);
-	config.Write(_T("LeadOutLineLen"), m_profile_params.m_lead_out_line_len);
-
 }
 
 void CProfile::ReadDefaultValues()
@@ -810,17 +751,11 @@ void CProfile::ReadDefaultValues()
 	config.Read(_T("RollRadius"), &m_profile_params.m_auto_roll_radius, 2.0);
 	config.Read(_T("OffsetExtra"), &m_profile_params.m_offset_extra, 0.0);
 	config.Read(_T("DoFinishPass"), &m_profile_params.m_do_finishing_pass, false);
-	config.Read(_T("OnlyFinishPass"), &m_profile_params.m_only_finishing_pass, false);
 	config.Read(_T("FinishFeedRate"), &m_profile_params.m_finishing_h_feed_rate, 100.0);
 	config.Read(_T("FinishCutMode"), &int_mode, CProfileParams::eConventional);
 	m_profile_params.m_finishing_cut_mode = (CProfileParams::eCutMode)int_mode;
 	config.Read(_T("FinishStepDown"), &m_profile_params.m_finishing_step_down, 1.0);
 	config.Read(_T("EndBeyond"), &m_profile_params.m_end_beyond_full_profile, false);
-
-	config.Read(_T("ExtendAtStart"), &m_profile_params.m_extend_at_start, 0.0);
-	config.Read(_T("ExtendAtEnd"), &m_profile_params.m_extend_at_end, 0.0);
-	config.Read(_T("LeadInLineLen"), &m_profile_params.m_lead_in_line_len, 0.0);
-	config.Read(_T("LeadOutLineLen"), &m_profile_params.m_lead_out_line_len, 0.0);
 
 	ConfirmAutoRollRadius(true);
 
@@ -831,10 +766,7 @@ Python CProfile::AppendTextToProgram(CMachineState *pMachineState)
 	Python python;
 
 	// roughing pass
-	if(!this->m_profile_params.m_do_finishing_pass || !this->m_profile_params.m_only_finishing_pass)
-	{
-		python << AppendTextToProgram(pMachineState, false);
-	}
+	python << AppendTextToProgram(pMachineState, false);
 
 	// finishing pass
 	if(this->m_profile_params.m_do_finishing_pass)
@@ -1271,14 +1203,9 @@ std::list<wxString> CProfile::DesignRulesAdjustment(const bool apply_changes)
 		HeeksObj *obj = heeksCAD->GetIDObject( SketchType, *l_itSketch );
 		if (obj == NULL)
 		{
-#ifdef UNICODE
-			std::wostringstream l_ossChange;
-#else
-			std::ostringstream l_ossChange;
-#endif
-
-			l_ossChange << _("Invalid reference to sketch") << " id='" << *l_itSketch << "' " << _("in profile operations") << " id='" << m_id << "'\n";
-			changes.push_back(l_ossChange.str().c_str());
+			wxString change;
+			change << DesignRulesPreamble() << _("Invalid reference to sketch in profile operations");
+			changes.push_back(change);
 
 			if (apply_changes)
 			{
@@ -1301,14 +1228,9 @@ std::list<wxString> CProfile::DesignRulesAdjustment(const bool apply_changes)
 
 	if (GetNumSketches() == 0)
 	{
-#ifdef UNICODE
-			std::wostringstream l_ossChange;
-#else
-			std::ostringstream l_ossChange;
-#endif
-
-			l_ossChange << _("No valid sketches upon which to act for profile operations") << " id='" << m_id << "'\n";
-			changes.push_back(l_ossChange.str().c_str());
+		wxString change;
+		change << DesignRulesPreamble() << _("No valid sketches upon which to act for profile operations");
+		changes.push_back(change);
 	} // End if - then
 
 
@@ -1320,12 +1242,12 @@ std::list<wxString> CProfile::DesignRulesAdjustment(const bool apply_changes)
 		{
 			// The tool we've chosen can't cut as deep as we've setup to go.
 
-			std::wostringstream l_ossChange;
+			wxString change;
 
-			l_ossChange << _("Adjusting depth of profile") << " id='" << m_id << "' " << _("from") << " '"
-				<< m_depth_op_params.m_final_depth << " " << _("to") << " "
-				<< pCutter->m_params.m_cutting_edge_height << " " << _("due to cutting edge length of selected tool") << "\n";
-			changes.push_back(l_ossChange.str().c_str());
+			change << DesignRulesPreamble() << _("Adjusting depth of profile from ")
+				<< m_depth_op_params.m_final_depth << _(" to ")
+				<< pCutter->m_params.m_cutting_edge_height << _(" due to cutting edge length of selected tool");
+			changes.push_back(change);
 
 			if (apply_changes)
 			{

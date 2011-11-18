@@ -5,8 +5,14 @@
 // Copyright (c) 2009, Dan Heeks
 // This program is released under the BSD license. See the file COPYING for details.
 
+#ifndef WIN32
+	#include <Python.h>     // This needs to be above any of the standard template library files to prevent _XOPEN_SOURCE redefinition warnings.
+#endif
+
 #ifdef WIN32
 #pragma warning(disable : 4996)
+#pragma warning(disable:4005)
+#pragma warning(disable:4273)
 #endif
 
 #include <list>
@@ -44,6 +50,11 @@ extern "C" {
 #include "TopoDS_Face.hxx"
 
 // TODO: reference additional headers your program requires here
+
+#ifdef WIN32
+	#include <Python.h>     // This needs to be above any of the standard template library files to prevent _XOPEN_SOURCE redefinition warnings.
+#endif
+
 
 // Visual Studio 2010 work arround
 

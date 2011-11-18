@@ -7,8 +7,6 @@
 
 #include "stdafx.h"
 
-#ifndef STABLE_OPS_ONLY
-
 #include "Contour.h"
 #include "CNCConfig.h"
 #include "ProgramCanvas.h"
@@ -27,6 +25,7 @@
 #include "PythonStuff.h"
 #include "MachineState.h"
 #include "Program.h"
+#include "interface/HeeksColor.h"
 
 #include <sstream>
 #include <iomanip>
@@ -51,8 +50,14 @@
 #include <GCPnts_AbscissaPoint.hxx>
 #include <Handle_BRepAdaptor_HCurve.hxx>
 #include <GeomAdaptor_Curve.hxx>
+#include <Geom_BSplineCurve.hxx>
 #include <Adaptor3d_HCurve.hxx>
 #include <Adaptor3d_Curve.hxx>
+#include <TColStd_Array1OfReal.hxx>
+#include <GeomAPI_ProjectPointOnCurve.hxx>
+#include <BRepOffsetAPI_NormalProjection.hxx>
+#include <BRepProj_Projection.hxx>
+#include <BRepPrimAPI_MakeCylinder.hxx>
 
 extern CHeeksCADInterface* heeksCAD;
 
@@ -216,238 +221,53 @@ const wxBitmap &CContour::GetIcon()
 }
 
 
-/* static */ CNCPoint CContour::GetStart(const TopoDS_Edge &edge)
-{
-    BRepAdaptor_Curve curve(edge);
-    double uStart = curve.FirstParameter();
-    gp_Pnt PS;
-    gp_Vec VS;
-    curve.D1(uStart, PS, VS);
-
-    return(PS);
-}
-
-/* static */ CNCPoint CContour::GetEnd(const TopoDS_Edge &edge)
-{
-    BRepAdaptor_Curve curve(edge);
-    double uEnd = curve.LastParameter();
-    gp_Pnt PE;
-    gp_Vec VE;
-    curve.D1(uEnd, PE, VE);
-
-    return(PE);
-}
-
-/* static */ double CContour::GetLength(const TopoDS_Edge &edge)
-{
-    BRepAdaptor_Curve curve(edge);
-    return(GCPnts_AbscissaPoint::Length(curve));
-}
-
-
-struct EdgeComparison : public binary_function<const TopoDS_Edge &, const TopoDS_Edge &, bool >
-{
-    EdgeComparison( const TopoDS_Edge & edge )
-    {
-        m_reference_edge = edge;
-    }
-
-    bool operator()( const TopoDS_Edge & lhs, const TopoDS_Edge & rhs ) const
-    {
-
-        std::vector<double> lhs_distances;
-        lhs_distances.push_back( CContour::GetStart(m_reference_edge).Distance( CContour::GetStart(lhs) ) );
-        lhs_distances.push_back( CContour::GetStart(m_reference_edge).Distance( CContour::GetEnd(lhs) ) );
-        lhs_distances.push_back( CContour::GetEnd(m_reference_edge).Distance( CContour::GetStart(lhs) ) );
-        lhs_distances.push_back( CContour::GetEnd(m_reference_edge).Distance( CContour::GetEnd(lhs) ) );
-        std::sort(lhs_distances.begin(), lhs_distances.end());
-
-        std::vector<double> rhs_distances;
-        rhs_distances.push_back( CContour::GetStart(m_reference_edge).Distance( CContour::GetStart(rhs) ) );
-        rhs_distances.push_back( CContour::GetStart(m_reference_edge).Distance( CContour::GetEnd(rhs) ) );
-        rhs_distances.push_back( CContour::GetEnd(m_reference_edge).Distance( CContour::GetStart(rhs) ) );
-        rhs_distances.push_back( CContour::GetEnd(m_reference_edge).Distance( CContour::GetEnd(rhs) ) );
-        std::sort(rhs_distances.begin(), rhs_distances.end());
-
-        return(*(lhs_distances.begin()) < *(rhs_distances.begin()));
-    }
-
-    TopoDS_Edge m_reference_edge;
-};
-
-/* static */ std::vector<TopoDS_Edge> CContour::SortEdges( const TopoDS_Wire & wire )
-{
-    std::vector<TopoDS_Edge> edges;
-
-	for(BRepTools_WireExplorer expEdge(TopoDS::Wire(wire)); expEdge.More(); expEdge.Next())
-	{
-	    edges.push_back( TopoDS_Edge(expEdge.Current()) );
-	} // End for
-
-	for (std::vector<TopoDS_Edge>::iterator l_itEdge = edges.begin(); l_itEdge != edges.end(); l_itEdge++)
-    {
-        if (l_itEdge == edges.begin())
-        {
-            // It's the first edge.  Find the edge whose endpoint is closest to gp_Pnt(0,0,0) so that
-            // the resutls of this sorting are consistent.  When we just use the first edge in the
-            // wire, we end up with different results every time.  We want consistency so that, if we
-            // use this Contour operation as a location for drilling a relief hole (one day), we want
-            // to be sure the machining will begin from a consistently known location.
-
-            std::vector<TopoDS_Edge>::iterator l_itStartingEdge = edges.begin();
-            gp_Pnt closest_point = GetStart(*l_itStartingEdge);
-            if (GetEnd(*l_itStartingEdge).Distance(gp_Pnt(0,0,0)) < closest_point.Distance(gp_Pnt(0,0,0)))
-            {
-                closest_point = GetEnd(*l_itStartingEdge);
-            }
-            for (std::vector<TopoDS_Edge>::iterator l_itCheck = edges.begin(); l_itCheck != edges.end(); l_itCheck++)
-            {
-                if (GetStart(*l_itCheck).Distance(gp_Pnt(0,0,0)) < closest_point.Distance(gp_Pnt(0,0,0)))
-                {
-                    closest_point = GetStart(*l_itCheck);
-                    l_itStartingEdge = l_itCheck;
-                }
-
-                if (GetEnd(*l_itCheck).Distance(gp_Pnt(0,0,0)) < closest_point.Distance(gp_Pnt(0,0,0)))
-                {
-                    closest_point = GetEnd(*l_itCheck);
-                    l_itStartingEdge = l_itCheck;
-                }
-            }
-
-            EdgeComparison compare( *l_itStartingEdge );
-            std::sort( edges.begin(), edges.end(), compare );
-        } // End if - then
-        else
-        {
-            // We've already begun.  Just sort based on the previous point's location.
-            std::vector<TopoDS_Edge>::iterator l_itNextEdge = l_itEdge;
-            l_itNextEdge++;
-
-            if (l_itNextEdge != edges.end())
-            {
-                EdgeComparison compare( *l_itEdge );
-                std::sort( l_itNextEdge, edges.end(), compare );
-            } // End if - then
-        } // End if - else
-    } // End for
-
-    return(edges);
-
-} // End SortEdges() method
 
 
 /**
-    When we're starting a new sequence of edges, we want to run along the first edge
-    so that we end up nearby to the next edge in the sorted sequence.  If we go in the
-    wrong direction then we're just going to have to rapid up to clearance height and
-    move to the beginning of the next edge anyway.  This routine returns 'true' if
-    the next edge is closer to the 'end' of this edge and 'false' if it's closer to
-    the 'beginning' of this edge.  This tell us whether we want to run forwards
-    or backwards along this edge so that we're setup ready to machine the next edge.
+	Return the U value that is this proportion of the way between the StartParameter()
+	and the EndParameter().  The U value is some floating point value that represents
+	how far along the Path one wants.  For a line, it's a distance but for an arc it's
+	the number of radians.  We can't infer anything from the value but we can use it
+	to move a proportion of the way along a Path object, no matter what type of object
+	it is.
  */
-/* static */ bool CContour::DirectionTowarardsNextEdge( const TopoDS_Edge &from, const TopoDS_Edge &to )
+Standard_Real CContour::Path::Proportion( const double proportion ) const
 {
-    const bool forwards = true;
-    const bool backwards = false;
-
-    bool direction = forwards;
-
-    double min_distance = 9999999;  // Some big number.
-    if (GetStart(from).XYDistance( GetEnd( to )) < min_distance)
+    if (StartParameter() < EndParameter())
     {
-        min_distance = GetStart( from ).XYDistance( GetEnd( to ));
-        direction = backwards;
+        return(((EndParameter() - StartParameter()) * proportion) + StartParameter());
     }
-
-    if (GetEnd(from).XYDistance( GetEnd( to )) < min_distance)
+    else
     {
-        min_distance = GetEnd(from).XYDistance( GetEnd( to ));
-        direction = forwards;
+        return(((StartParameter() - EndParameter()) * proportion) + EndParameter());
     }
-
-    if (GetStart(from).XYDistance( GetStart( to )) < min_distance)
-    {
-        min_distance = GetStart(from).XYDistance( GetStart( to ));
-        direction = backwards;
-    }
-
-    if (GetEnd(from).XYDistance( GetStart( to )) < min_distance)
-    {
-        min_distance = GetEnd(from).XYDistance( GetStart( to ));
-        direction = forwards;
-    }
-
-    return(direction);
 }
 
 
 /**
-	We're itterating through the vector of TopoDS_Edge objects forwards
-	and backwards until we're either deep enough for our purposes or we
-	come to a discontinuity between the two edges.  This routine simply
-	looks for the ends (as both beginning and end) of the vector and
-	allows the offset to loop around the vector if necessary.
+	Generate a Python program that follows this ContiguousPath backwards and forwards but slopes down (in Z) at
+	the tool's configured gradient until the 'end_z' depth is reached.
+
+	We run along the Paths until we are half way between the current depth and the end_z depth in one direction (assuming
+	the length of the ContiguousPath allows it) and then we reverse direction and come back.  By the time we reach our
+	starting position (in X,Y) we should be at the end_z depth.  This sets us up to run around the whole ContiguousPath
+	at this depth to make the real cut.
+
+	If the length of the sketch and the tool's gradient mean that we can't get to our goal depths in a single pair of
+	forwards/backwards passes then we just need to change direction as often as necessary.  i.e. if we have only a
+	couple of short lines in our ContiguousPath then we just need to run backwards and forwards along those lines
+	until we reach our required depth.
  */
-/* static */ std::vector<TopoDS_Edge>::size_type CContour::NextOffset(
-	const std::vector<TopoDS_Edge> &edges,
-	const std::vector<TopoDS_Edge>::size_type edges_offset,
-	const int direction )
+Python CContour::ContiguousPath::Ramp( std::vector<CContour::Path>::iterator itPath, CMachineState *pMachineState, const double end_z )
 {
-	if ((direction > 0) && (edges_offset == edges.size()-1))
-	{
-		return(0);  // Loop around.
-	}
+	Python python;
 
-	if ((direction < 0) && (edges_offset == 0))
-	{
-		return(edges.size()-1); // Loop around.
-	}
-
-	return(edges_offset + direction);
-}
-
-
-/* static */ bool CContour::EdgesJoin( const TopoDS_Edge &a, const TopoDS_Edge &b )
-{
-	double tolerance = heeksCAD->GetTolerance();
-
-	if (GetStart(a).XYDistance(GetStart(b)) < tolerance) return(true);
-	if (GetStart(a).XYDistance(GetEnd(b)) < tolerance) return(true);
-	if (GetEnd(a).XYDistance(GetStart(b)) < tolerance) return(true);
-	if (GetEnd(a).XYDistance(GetEnd(b)) < tolerance) return(true);
-
-	return(false);
-}
-
-
-/**
-    For these edges, plan a path to get the  tool from the current
-    depth down to the first edge's depth at no more than the gradient
-    specified for the  tool.  This might mean running right around
-    all edges spiralling down until the required depth or it might mean
-    running along part of the wire backwards and forwards until the depth
-    is achieved.
-
-    This routine should ramp the tool down along the edges until the tool's
-    depth is at the starting edge's depth.  At the end of this routine, the
-    tool's location should be at the starting point of the itStartingEdge
-    so that it can progress, at this depth, right around the whole wire.
- */
-/* static */ Python CContour::GenerateRampedEntry(
-    ::size_t starting_edge_offset,
-    std::vector<TopoDS_Edge> & edges,
-	CMachineState *pMachineState,
-	const double end_z )
-{
-    Python python;
-
-    if (edges.size() == 0) return(python);  // Empty.
-    if (starting_edge_offset == edges.size()-1) starting_edge_offset = 0;  // loop around if necessary.
-
+	// We want to remember our original direction so we can run around the ContiguousPath following this Ramp() method.
+    bool original_direction = m_is_forwards;
     double tolerance = heeksCAD->GetTolerance();
+	std::vector<CContour::Path>::iterator itStart;
 
-    // Get the gradient from the  tool's definition.
+	// Get the gradient from the  tool's definition.
     CTool *pTool = CTool::Find( pMachineState->Tool() );
     if (pTool == NULL)
     {
@@ -455,11 +275,30 @@ struct EdgeComparison : public binary_function<const TopoDS_Edge &, const TopoDS
     }
 
     double gradient = pTool->Gradient();
+	if (gradient > 0) gradient *= -1.0;	// It MUST be negative to slope downwards.
+	if (fabs(gradient) < tolerance)
+	{
+		// The tool definition is not setup correctly.
+		return(python);	// empty.
+	}
 
-    const TopoDS_Shape &first_edge = edges[starting_edge_offset];
-    BRepAdaptor_Curve top_curve(TopoDS::Edge(first_edge));
-    gp_Pnt point;
-    top_curve.D0(top_curve.FirstParameter(),point);
+	if (CDouble(pMachineState->Location().Z()) <= CDouble(end_z))
+	{
+		// The machine's depth is already either at or lower than our destination depth.
+		// There is no need to ramp down further.
+		return(python);	// empty.
+	}
+
+	if (pMachineState->Location().XYDistance(itPath->StartPoint()) > tolerance)
+	{
+		// NOTE: We're assuming that we're above the workpiece before we get into this routine.
+		python << _T("rapid(") << _T("x=") << itPath->StartPoint().X(true)
+								<< _T(",y=") << itPath->StartPoint().Y(true)
+								<< _T(")\n");
+	}
+
+	// Ramp to half way down the step-down distance.
+	double goal_z = ((pMachineState->Location().Z() - end_z) / 2.0) + end_z;
     double initial_tool_depth = pMachineState->Location().Z();
 
     CNCPoint end_point(pMachineState->Location());
@@ -467,99 +306,21 @@ struct EdgeComparison : public binary_function<const TopoDS_Edge &, const TopoDS
 
     python << _T("comment('Ramp down to ") << end_z << _T(" at a gradient of ") << gradient << _T("')\n");
 
-    int direction = +1;	// Move forwards through the list of edges (for now)
-
-    if (pMachineState->Location().XYDistance(GetStart(edges[starting_edge_offset])) < pMachineState->Location().XYDistance(GetEnd(edges[starting_edge_offset])))
-    {
-        // The machine is closer to the starting point of this edge.  Find out whether the end point is closer
-        // to the next edge or the previous edge.  Set the direction of edge iteration accordingly.
-        int next_edge_offset = NextOffset(edges,starting_edge_offset,+1);
-        int previous_edge_offset = NextOffset(edges,starting_edge_offset,-1);
-
-        // We're going to end up at this edge's end point.
-        CNCPoint reference_point(GetEnd(edges[starting_edge_offset]));
-        double next_distance = reference_point.XYDistance(GetStart(edges[next_edge_offset]));
-        if (reference_point.XYDistance(GetEnd(edges[next_edge_offset])) < next_distance)
-        {
-            next_distance = reference_point.XYDistance(GetEnd(edges[next_edge_offset]));
-        }
-
-        double previous_distance = reference_point.XYDistance(GetStart(edges[previous_edge_offset]));
-        if (reference_point.XYDistance(GetEnd(edges[previous_edge_offset])) < previous_distance)
-        {
-            previous_distance = reference_point.XYDistance(GetEnd(edges[previous_edge_offset]));
-        }
-
-        if (next_distance < previous_edge_offset)
-        {
-            direction = +1;
-        }
-        else
-        {
-            direction = -1;
-        }
-    }
-    else
-    {
-        // We're going to end up at this edge's start point.  See which direction the next nearest edge is from here.
-        int next_edge_offset = NextOffset(edges,starting_edge_offset,+1);
-        int previous_edge_offset = NextOffset(edges,starting_edge_offset,-1);
-
-        // We're going to end up at this edge's end point.
-        CNCPoint reference_point(GetStart(edges[starting_edge_offset]));
-        double next_distance = reference_point.XYDistance(GetStart(edges[next_edge_offset]));
-        if (reference_point.XYDistance(GetEnd(edges[next_edge_offset])) < next_distance)
-        {
-            next_distance = reference_point.Distance(GetEnd(edges[next_edge_offset]));
-        }
-
-        double previous_distance = reference_point.Distance(GetStart(edges[previous_edge_offset]));
-        if (reference_point.XYDistance(GetEnd(edges[previous_edge_offset])) < previous_distance)
-        {
-            previous_distance = reference_point.XYDistance(GetEnd(edges[previous_edge_offset]));
-        }
-
-        if (next_distance < previous_edge_offset)
-        {
-            direction = +1;
-        }
-        else
-        {
-            direction = -1;
-        }
-    }
-
     // Ideally we would ramp down to half the step-down height in one direction and then come
     // back the other direction.  That way we would be back at the starting point by the
     // time we're at the step-down height.
     double half_way_down = ((initial_tool_depth - end_z) / 2.0) + end_z;
+	goal_z = half_way_down;
 
-    double goal_z = end_z;
-
-    // If the tool's diameter is too large for this gradient and step-down then don't go
-    // half way and then back again.  Instead, go all the way out and come back at this
-    // base height.
-    if ((initial_tool_depth - (gradient * pTool->CuttingRadius() * 2.0)) > half_way_down)
+    while (pMachineState->Location() != end_point)
     {
-        goal_z = half_way_down;    // We're going to be moving more than one  tool radius so aim
-                                    // for half way down and then double back to find final depth.
-    }
-
-    ::size_t edge_offset = starting_edge_offset;
-    while (fabs(pMachineState->Location().Z() - end_z) > tolerance)
-    {
-        bool direction_has_changed = false;     // Avoid the double direction change.
-        const TopoDS_Shape &E = edges[edge_offset];
-        BRepAdaptor_Curve curve(TopoDS::Edge(E));
-        double edge_length = GCPnts_AbscissaPoint::Length (curve);
-
         double distance_remaining = pMachineState->Location().Z() - goal_z;
 
         // We need to go distance_remaining over the edge_length at no more
         // than the gradient.  See if we can do that within this edge's length.
         // If so, figure out what point marks the necessary depth.
-        double depth_possible_with_this_edge = gradient * edge_length * -1.0;   // positive number representing a depth (distance)
-        if (distance_remaining <= depth_possible_with_this_edge)
+        double depth_possible_with_this_edge = gradient * itPath->Length() * -1.0;   // positive number representing a depth (distance)
+        if (CDouble(distance_remaining) < CDouble(depth_possible_with_this_edge))
         {
             // We don't need to traverse this whole edge before we're at depth.  Find
             // the point along this edge at which we will be at depth.
@@ -569,125 +330,61 @@ struct EdgeComparison : public binary_function<const TopoDS_Edge &, const TopoDS
             // use the proportion of the length to come up with a 'U' parameter for
             // this edge that indicates the point along the edge.
 
-            if (pMachineState->Location().XYDistance(GetStart(edges[edge_offset])) < pMachineState->Location().XYDistance(GetEnd(edges[edge_offset])))
+            double proportion = distance_remaining / depth_possible_with_this_edge;
+            double U = itPath->Proportion(proportion);
+
+            // The point_at_full_depth indicates where we will be when we are at depth.  Run
+            // along the edge down to this point
+            python << itPath->GCode( itPath->StartParameter(), U, pMachineState, goal_z );
+
+            if (CDouble(proportion) < CDouble(1.0))
             {
-                // We're going from FirstParameter() towards LastParameter()
-                double proportion = distance_remaining / depth_possible_with_this_edge;
-                double U = ((curve.LastParameter() - curve.FirstParameter()) * proportion) + curve.FirstParameter();
+                // Now reverse back to the start of this edge.
+                Reverse();
 
-                // The point_at_full_depth indicates where we will be when we are at depth.  Run
-                // along the edge down to this point
-                python << GeneratePathForEdge( edges[edge_offset], curve.FirstParameter(), U, true, pMachineState, goal_z );
-
-                if (DirectionTowarardsNextEdge( edges[edge_offset], edges[NextOffset(edges,edge_offset,(int) ((fabs(goal_z - end_z) > tolerance)?direction * -1.0:direction))] ))
+                if (CDouble(pMachineState->Location().Z()) > CDouble(end_z))
                 {
-                    // We're heading towards the end of this edge.
-                    python << GeneratePathForEdge( edges[edge_offset], U, curve.LastParameter(), true, pMachineState, goal_z );
+                    python << itPath->GCode( U, itPath->EndParameter(), pMachineState, goal_z - distance_remaining );
                 }
                 else
                 {
-                    // We're heading towards the beginning of this edge.
-                    python << GeneratePathForEdge( edges[edge_offset], U, curve.FirstParameter(), false, pMachineState, goal_z );
-                }
-            }
-            else
-            {
-                // We're going from LastParameter() towards FirstParameter()
-                double proportion = 1.0 - (distance_remaining / depth_possible_with_this_edge);
-                double U = ((curve.LastParameter() - curve.FirstParameter()) * proportion) + curve.FirstParameter();
-
-                // The point_at_full_depth indicates where we will be when we are at depth.  Run
-                // along the edge down to this point
-                python << GeneratePathForEdge( edges[edge_offset], curve.LastParameter(), U, false, pMachineState, goal_z );
-
-                if (DirectionTowarardsNextEdge( edges[edge_offset], edges[NextOffset(edges,edge_offset,(int) ((fabs(goal_z - end_z) > tolerance)?direction * -1.0:direction))] ))
-                {
-                    // We're heading towards the end of this edge.
-                    python << GeneratePathForEdge( edges[edge_offset], U, curve.LastParameter(), true, pMachineState, goal_z );
-                }
-                else
-                {
-                    // We're heading towards the beginning of this edge.
-                    python << GeneratePathForEdge( edges[edge_offset], U, curve.FirstParameter(), false, pMachineState, goal_z );
+                    python << itPath->GCode( U, itPath->EndParameter(), pMachineState, end_z);
                 }
             }
 
-            if (fabs(goal_z - end_z) > tolerance)
-            {
-                direction_has_changed = true;
-                direction *= -1.0;  // Reverse direction
-                goal_z = end_z;   // Changed goal.
-            }
+            goal_z = end_z;   // Changed goal.
         }
         else
         {
             // This edge is not long enough for us to reach our goal depth.  Run all the way along this edge.
             double z_for_this_run = pMachineState->Location().Z() - depth_possible_with_this_edge;
-
-            if (pMachineState->Location().XYDistance(GetStart(edges[edge_offset])) < pMachineState->Location().XYDistance(GetEnd(edges[edge_offset])))
-            {
-                python << GeneratePathForEdge( edges[edge_offset], curve.FirstParameter(), curve.LastParameter(), true, pMachineState, z_for_this_run );
-            }
-            else
-            {
-                python << GeneratePathForEdge( edges[edge_offset], curve.LastParameter(), curve.FirstParameter(), false, pMachineState, z_for_this_run );
-            }
+            python << itPath->GCode( itPath->StartParameter(), itPath->EndParameter(), pMachineState, z_for_this_run );
         }
 
-        if (EdgesJoin( edges[edge_offset], edges[NextOffset(edges,edge_offset,direction)] ) == false)
+        if (pMachineState->Location() != end_point)
         {
-            if (! direction_has_changed)
-            {
-                // Reverse direction
-                direction *= -1.0;
-                direction_has_changed = true;
-            }
-        }
-        else
-        {
-            // Step through the array of edges in the current direction (looping from end to start (or vice versa) if necessary)
-            edge_offset = NextOffset(edges,edge_offset,direction);
-        }
-    } // while
-
-    while (pMachineState->Location() != end_point)
-    {
-        const TopoDS_Shape &E = edges[edge_offset];
-        BRepAdaptor_Curve curve(TopoDS::Edge(E));
-
-        if (pMachineState->Location().XYDistance(GetStart(edges[edge_offset])) < pMachineState->Location().XYDistance(GetEnd(edges[edge_offset])))
-        {
-            python << GeneratePathForEdge( edges[edge_offset], curve.FirstParameter(), curve.LastParameter(), true, pMachineState, pMachineState->Location().Z() );
-        }
-        else
-        {
-            python << GeneratePathForEdge( edges[edge_offset], curve.LastParameter(), curve.FirstParameter(), false, pMachineState, pMachineState->Location().Z() );
-        }
-
-        if (EdgesJoin( edges[edge_offset], edges[NextOffset(edges,edge_offset,direction)] ) == false)
-        {
-            // Reverse direction
-            direction *= -1.0;
-        }
-        else
-        {
-            edge_offset = NextOffset(edges,edge_offset,direction);
+            itPath = Next(itPath);
         }
     } // End while
+
+    if (m_is_forwards != original_direction)
+    {
+        Reverse();  // Head back in the 'forwards' direction ready to machine the part.
+    }
 
     python << _T("comment('end ramp')\n");
 	return(python);
 }
 
 
-/**
-    The min_gradient is the minimum gradient the toolpath may follow before reaching the required depth.
-    The gradient being a measurement of rise over run.  Since we're moving downwards, the 'rise' value
-    will always be negative; producing a negative gradient.  A min_gradient of STRAIGHT_PLUNGE (special
-    double value) indicates that ramping is not required.
- */
 
-/* static */ Python CContour::GeneratePathFromWire(
+
+/**
+	This is the main entry point for this class's GCode generation.  It's static so that
+	other operations, like Inlay, can generate its own TopoDS_Wire objects and then
+	use this code to generate GCode to follow it.
+ */
+/* static */ Python CContour::GCode(
 	const TopoDS_Wire & wire,
 	CMachineState *pMachineState,       // for both fixture and last_position.
 	const double clearance_height,
@@ -697,91 +394,157 @@ struct EdgeComparison : public binary_function<const TopoDS_Edge &, const TopoDS
 {
 	Python python;
 
-    std::vector<TopoDS_Edge> edges = SortEdges(wire);
+	Paths paths;
+	paths.Add(wire);
 
-    for (std::vector<TopoDS_Edge>::size_type i=0; i<edges.size(); i++)
+	// paths.GenerateSketches();
+
+	python << paths.GCode( pMachineState, clearance_height, rapid_down_to_height, start_depth, entry_move_type );
+
+	return(python);
+}
+
+
+/**
+	Generate the Python program that will, in turn, generate GCode for all of our ContiguousPath objects.
+ */
+Python CContour::Paths::GCode(
+	CMachineState *pMachineState,       // for both fixture and last_position.
+	const double clearance_height,
+	const double rapid_down_to_height,
+	const double start_depth,
+	const CContourParams::EntryMove_t entry_move_type )
+{
+	Python python;
+
+	for (std::vector<ContiguousPath>::iterator itPath = m_contiguous_paths.begin(); itPath != m_contiguous_paths.end(); itPath++)
 	{
-		const TopoDS_Shape &E = edges[i];
+		python << itPath->GCode( pMachineState, clearance_height, rapid_down_to_height, start_depth, entry_move_type );
+	}
 
-		BRepAdaptor_Curve curve(TopoDS::Edge(E));
+	return(python);
+}
 
-		double uStart = curve.FirstParameter();
-		double uEnd = curve.LastParameter();
-		gp_Pnt PS;
-		gp_Vec VS;
-		curve.D1(uStart, PS, VS);
-		gp_Pnt PE;
-		gp_Vec VE;
-		curve.D1(uEnd, PE, VE);
 
-		if (pMachineState->Location() == CNCPoint(PS))
+/**
+	Adjust the vector of path objects so that the start point matches the X,Y values
+	of the location specified.  If this is half way through the vector of path objects
+	then the vector needs to be rearranged so that it's direction is still correct
+	but the first item in the vector matches this location.  We normally do this so that
+	the outline starts machining from the CNC machine's current location.
+ */
+bool CContour::ContiguousPath::SetStartPoint( CNCPoint location )
+{
+    double tolerance = heeksCAD->GetTolerance();
+
+    // This will only work if the path is periodic (i.e. a closed shape)
+    if (m_paths.begin()->StartPoint() != m_paths.rbegin()->EndPoint())
+    {
+        // We can't rearrange the list. See if we're already in position.
+        if (m_paths.begin()->StartPoint().XYDistance(location) < tolerance)
+        {
+            return(true);
+        }
+        else if (m_paths.rbegin()->EndPoint().XYDistance(location) < tolerance)
+        {
+            Reverse();
+            return(true);
+        }
+        else
+        {
+            // It's not periodic and the location doesn't line up
+            // with either of the endpoints.
+
+            return(false);
+        }
+    }
+    // Look for this location in the start/end points of this path.
+    for (std::vector<Path>::iterator itPath = m_paths.begin(); itPath != m_paths.end(); itPath++)
+    {
+        if (itPath->StartPoint().XYDistance(location) < tolerance)
+        {
+            // Rearrange the m_paths list so that this path is the first.
+            std::vector<Path> new_paths;
+            std::copy(itPath, m_paths.end(), std::inserter(new_paths, new_paths.begin()));
+            std::copy(m_paths.begin(), itPath, std::inserter(new_paths, new_paths.end()));
+            m_paths.clear();
+            std::copy(new_paths.begin(), new_paths.end(), std::inserter(m_paths, m_paths.begin()));
+            return(true);
+        }
+    }
+	return(false);	// It must have been periodic but the location was not at any of the starting points.
+}
+
+
+
+/**
+	Generate the Python program that will, in turn, generate GCode for this ContiguousPath.  We use
+	the pMachineState to keep track of which fixture, which tool and the machine's current location.
+	This all allows us to know whether or not we can get straight into machining this ContiguousPath
+	or whether we need to raise up to clearance height, move into position and then back down before
+	starting to machine this ContiguousPath.
+ */
+Python CContour::ContiguousPath::GCode(
+	CMachineState *pMachineState,       // for both fixture and last_position.
+	const double clearance_height,
+	const double rapid_down_to_height,
+	const double start_depth,
+	const CContourParams::EntryMove_t entry_move_type )
+{
+	Python python;
+	double tolerance = heeksCAD->GetTolerance();
+
+    // Try to rearrange the list of paths so that the list starts at the machine's current
+    // position.
+	SetStartPoint( pMachineState->Location() );
+
+	for (std::vector<Path>::iterator itPath = m_paths.begin(); itPath != m_paths.end(); itPath++)
+	{
+		if (pMachineState->Location() != itPath->StartPoint()) // in X,Y and Z
 		{
-			// We're heading towards the PE point.
-			python << GeneratePathForEdge(edges[i], uStart, uEnd, true, pMachineState, PE.Z());
-		} // End if - then
-		else if (pMachineState->Location() == CNCPoint(PE))
-		{
-			// We're goint towards PS
-			python << GeneratePathForEdge(edges[i], uEnd, uStart, false, pMachineState, PS.Z());
-		}
-		else
-		{
-			// We need to move to the start BEFORE machining this line.
-			CNCPoint start(PS);
-			CNCPoint end(PE);
-			bool isForwards = true;
-
-			if (i < (edges.size()-1))
-			{
-                if (! DirectionTowarardsNextEdge( edges[i], edges[i+1] ))
-                {
-                    // The next edge is closer to this edge's start point.  reverse direction
-                    // so that the next movement is better.
-
-                    double temp = uStart;
-					uStart = uEnd;
-					uEnd = temp;
-
-					CNCPoint temppnt(start);
-					start = end;
-					end = temppnt;
-
-					isForwards = false;
-                }
-			}
-
-            // If the tool is directly above the beginning of the next edge, we don't want
-            // to move to clearance height and rapid across to it.
-            CNCPoint s(start); s.SetZ(0.0); // Flatten start
-            CNCPoint l(pMachineState->Location()); l.SetZ(0.0);
-            if (s != l)
-            {
+		    if (pMachineState->Location().XYDistance(itPath->StartPoint()) > tolerance) // in X and Y only.
+		    {
+                // We need to move to the start BEFORE machining this line.
                 // Move up above workpiece to relocate to the start of the next edge.
                 python << _T("rapid(z=") << clearance_height / theApp.m_program->m_units << _T(")\n");
-                python << _T("rapid(x=") << start.X(true) << _T(", y=") << start.Y(true) << _T(")\n");
-                python << _T("rapid(z=") << rapid_down_to_height / theApp.m_program->m_units << _T(")\n");
-                python << _T("feed(z=") << start_depth / theApp.m_program->m_units << _T(")\n");
-                CNCPoint where(start);
-                where.SetZ(start_depth / theApp.m_program->m_units);
-                pMachineState->Location(where);
-            }
+
+				// Look at the locations that have been machined earlier in this program.  If we can lower
+				// the bit lower than the start_depth then we want to do so.
+                CNCPoint previous_location;
+                if (pMachineState->NearestLocation(pMachineState->Fixture(), itPath->StartPoint(), &previous_location))
+                {
+                    python << _T("rapid(x=") << itPath->StartPoint().X(true) << _T(", y=") << itPath->StartPoint().Y(true) << _T(")\n");
+                    python << _T("rapid(z=") << rapid_down_to_height / theApp.m_program->m_units << _T(")\n");
+                    python << _T("feed(z=") << previous_location.Z(true) << _T(")\n");
+                    pMachineState->Location(previous_location);
+                }
+                else
+                {
+                    python << _T("rapid(x=") << itPath->StartPoint().X(true) << _T(", y=") << itPath->StartPoint().Y(true) << _T(")\n");
+                    python << _T("rapid(z=") << rapid_down_to_height / theApp.m_program->m_units << _T(")\n");
+                    python << _T("feed(z=") << start_depth / theApp.m_program->m_units << _T(")\n");
+                    CNCPoint where(itPath->StartPoint());
+                    where.SetZ(start_depth / theApp.m_program->m_units);
+                    pMachineState->Location(where);
+                }
+		    }
 
             switch (entry_move_type)
             {
                 case CContourParams::ePlunge:
-                    python << _T("feed(z=") << start.Z(true) << _T(")\n");
-                    pMachineState->Location().SetZ( start.Z() );;
+                    python << _T("feed(z=") << itPath->StartPoint().Z(true) << _T(")\n");
+                    pMachineState->Location().SetZ( itPath->StartPoint().Z() );;
                     break;
 
                 case CContourParams::eRamp:
                 {
-                    python << GenerateRampedEntry( i, edges, pMachineState, start.Z() );
+                    python << Ramp( itPath, pMachineState, itPath->StartPoint().Z() );
                 }
                     break;
             } // End switch
-
-            python << GeneratePathForEdge(edges[i], uStart, uEnd, isForwards, pMachineState, PE.Z());
 		}
+
+        python << itPath->GCode(pMachineState, itPath->EndPoint().Z());
 	}
 
 	return(python);
@@ -789,45 +552,49 @@ struct EdgeComparison : public binary_function<const TopoDS_Edge &, const TopoDS
 
 
 
+
+
 /**
-    We want to move the  tool along this edge.  If the tool's current
-    position aligns with either the first_parameter's location or the last_parameter's
-    location then run to the opposite end.  If the tool's location does not align
-    with either of these locations then go from first to last.
-    NOTE: Ignore the Z value when looking for these alignments.
+	Machine the whole edge.
  */
-/* static */ Python CContour::GeneratePathForEdge(
-	const TopoDS_Edge &edge,
-	const double first_parameter,
-	const double last_parameter,
-	const bool direction,
-	CMachineState *pMachineState,
-	const double end_z )
+Python CContour::Path::GCode( CMachineState *pMachineState, const double end_z )
+{
+    return(GCode( StartParameter(), EndParameter(), pMachineState, end_z ));
+}
+
+/**
+	Machine part of the edge (i.e. from start_u to end_u) and down to end_z depth.
+ */
+Python CContour::Path::GCode( Standard_Real start_u, Standard_Real end_u, CMachineState *pMachineState, const double end_z )
 {
 	Python python;
 
 	double tolerance = heeksCAD->GetTolerance();
 
-	BRepAdaptor_Curve curve(edge);
+	BRepAdaptor_Curve curve(m_edge);
 	GeomAbs_CurveType curve_type = curve.GetType();
 
-	double uStart = first_parameter;
-    double uEnd = last_parameter;
-    gp_Pnt PS;
-    gp_Vec VS;
-    curve.D1(uStart, PS, VS);
-    PS.SetZ(pMachineState->Location().Z());
-    gp_Pnt PE;
-    gp_Vec VE;
-    curve.D1(uEnd, PE, VE);
-    PE.SetZ(end_z);
+	CNCPoint start;
+    gp_Vec vector_start;
+    curve.D1(start_u, start, vector_start);
 
-    bool forwards = direction;
+    CNCPoint end;
+    gp_Vec vector_end;
+    curve.D1(end_u, end, vector_end);
 
-    if (pMachineState->Location() == CNCPoint(PE))
+	start.SetZ( pMachineState->Location().Z() );
+	end.SetZ(end_z);
+
+
+    if (pMachineState->Location() == end)
     {
         // We are already at the end point.  Just return.
         return python;
+    }
+
+    if (pMachineState->Location() != start)
+    {
+        python << _T("comment('WARNING: Asked to move machine from start point but it is not there')\n");
     }
 
   	switch(curve_type)
@@ -835,18 +602,9 @@ struct EdgeComparison : public binary_function<const TopoDS_Edge &, const TopoDS
 		case GeomAbs_Line:
 			// make a line
 		{
-			gp_Pnt PS;
-			gp_Vec VS;
-			curve.D1(uStart, PS, VS);
-			PS.SetZ(pMachineState->Location().Z());
-			gp_Pnt PE;
-			gp_Vec VE;
-			curve.D1(uEnd, PE, VE);
-			PE.SetZ(end_z);
-
 			std::list<CNCPoint> points;
-			points.push_back(PS);
-			points.push_back(PE);
+			points.push_back(start);
+			points.push_back(end);
 
 			for (std::list<CNCPoint>::iterator itPoint = points.begin(); itPoint != points.end(); itPoint++)
             {
@@ -860,35 +618,23 @@ struct EdgeComparison : public binary_function<const TopoDS_Edge &, const TopoDS
 		break;
 
 		case GeomAbs_Circle:
-#ifdef STABLE_OPS_ONLY
-		if(1)
-#else
 		if ((pMachineState->Fixture().m_params.m_xz_plane == 0.0) && (pMachineState->Fixture().m_params.m_yz_plane == 0.0))
-#endif
 		{
-			gp_Pnt PS;
-			gp_Vec VS;
-			curve.D1(uStart, PS, VS);
-			gp_Pnt PE;
-			gp_Vec VE;
-			curve.D1(uEnd, PE, VE);
 			gp_Circ circle = curve.Circle();
-
-            // Arc towards PE
-            CNCPoint point(PE);
+            CNCPoint point(end);
             CNCPoint centre( circle.Location() );
             bool l_bClockwise = Clockwise(circle);
-            if (! forwards) l_bClockwise = ! l_bClockwise;
+            if (m_is_forwards == false) l_bClockwise = ! l_bClockwise;
 
             std::list<CNCPoint> points;
             double period = curve.Period();
-            double u = uStart;
-			if (uStart < uEnd)
+            double u = start_u;
+			if (start_u < end_u)
 			{
-				double step_down = (pMachineState->Location().Z() - end_z) / ((uEnd - uStart) / (period/4.0));
+				double step_down = (pMachineState->Location().Z() - end_z) / ((end_u - start_u) / (period/4.0));
 				double z = pMachineState->Location().Z();
 
-				for (u = uStart; u <= uEnd; u += (period/4.0))
+				for (u = start_u; u <= end_u; u += (period/4.0))
 				{
 					gp_Pnt p;
 					gp_Vec v;
@@ -900,10 +646,10 @@ struct EdgeComparison : public binary_function<const TopoDS_Edge &, const TopoDS
 			}
 			else
 			{
-				double step_down = (pMachineState->Location().Z() - end_z) / ((uStart - uEnd) / (period/4.0));
+				double step_down = (pMachineState->Location().Z() - end_z) / ((start_u - end_u) / (period/4.0));
 				double z = pMachineState->Location().Z();
 
-				for (u = uStart; u >= uEnd; u -= (period/4.0))
+				for (u = start_u; u >= end_u; u -= (period/4.0))
 				{
 					gp_Pnt p;
 					gp_Vec v;
@@ -914,9 +660,9 @@ struct EdgeComparison : public binary_function<const TopoDS_Edge &, const TopoDS
 				}
 			}
 
-            if ((points.size() > 0) && (*points.rbegin() != CNCPoint(PE)))
+            if ((points.size() > 0) && (*points.rbegin() != EndPoint()))
             {
-                CNCPoint point(PE);
+                CNCPoint point(EndPoint());
                 point.SetZ(end_z);
                 points.push_back( point );
             }
@@ -936,10 +682,57 @@ struct EdgeComparison : public binary_function<const TopoDS_Edge &, const TopoDS
                     // there is any rotation in the YZ and/or XZ planes.
         }
 
+		case GeomAbs_BSplineCurve:
+			if ((curve.BSpline() != NULL) &&		// The curve adaptor can interpret this as a BSpline.
+				(curve.BSpline()->IsRational()) &&  // the 'R' in NURBS stands for 'Rational'
+				(theApp.m_program->m_machine.m_nurbs_supported) && // The controller can handle NURBS tool paths.
+				(fabs(pMachineState->Location().Z() - end_z) < tolerance))	// We can't slope down using a BSPline definition.
+			{
+				// It's a (hopefully non-uniform) Rational BSpline Curve (NURBS curve).  We can handle this with EMC2 without having to
+				// convert it into lines or arcs first.  i.e. we can represent it to EMC2 using G5.2 and G5.3 along with X, Y, P and L
+				// arguments.  If we do it that way, the EMC2 routine will interpolate at the machine's best resolution rather than
+				// anythin we configure here.
+
+				TColStd_Array1OfReal weights(1, curve.BSpline()->NbPoles());
+				curve.BSpline()->Weights(weights);
+
+				if (weights.Length() > 0)
+				{
+					static int id=0;
+
+					for (Standard_Integer i=1; i <= weights.Length(); i++)
+					{
+						// Standard_Real weight = weights.Value(i);
+						gp_Pnt pole = curve.BSpline()->Pole(i);
+
+						if (i == 1)
+						{
+							python << _T("nurbs_begin_definition(id=") << ++id << _T(", degree=") << curve.BSpline()->Degree() << _T(",")
+									<< _T("x=") << pole.X() / theApp.m_program->m_units << _T(",")
+									<< _T("y=") << pole.Y() / theApp.m_program->m_units << _T(",")
+									<< _T("weight=") << weights.Value(i) << _T(")\n");
+						}
+						else
+						{
+							python << _T("nurbs_add_pole(id=") << id << _T(", ")
+								<< _T("x=") << pole.X() / theApp.m_program->m_units << _T(",")
+								<< _T("y=") << pole.Y() / theApp.m_program->m_units << _T(",")
+								<< _T("weight=") << weights.Value(i) << _T(")\n");
+						}
+					}
+					python << _T("nurbs_end_definition(id=") << id << _T(")\n");
+				}
+
+				break;
+			}
+			// If it is not rational or NURBS are not supported by this machine's controller
+			// then let it fall through to the 'default' option to be 'stroked' into lines.
+			// i.e. do NOT add a 'break' statement here.  Fall through instead.
+
 		default:
 		{
 			// make lots of small lines
-			BRepBuilderAPI_MakeEdge edge_builder(curve.Curve().Curve(), uStart, uEnd);
+			BRepBuilderAPI_MakeEdge edge_builder(curve.Curve().Curve(), start_u, end_u);
 			TopoDS_Edge edge(edge_builder.Edge());
 
 			BRepTools::Clean(edge);
@@ -958,7 +751,7 @@ struct EdgeComparison : public binary_function<const TopoDS_Edge &, const TopoDS
 				} // End for
 
 				// See if we should go from the start to the end or the end to the start.
-				if (first_parameter > last_parameter)
+				if (start_u > end_u)
 				{
 					// We need to go from the end to the start.  Reverse the point locations to
 					// make this easier.
@@ -991,6 +784,7 @@ struct EdgeComparison : public binary_function<const TopoDS_Edge &, const TopoDS
 
 
 
+
 /**
 	This method is called when the CAD operator presses the Python button.  This method generates
 	Python source code whose job will be to generate RS-274 GCode.  It's done in two steps so that
@@ -1012,6 +806,17 @@ Python CContour::AppendTextToProgram( CMachineState *pMachineState )
 	{
 		return(python);
 	}
+
+	std::list<HeeksObj *> solids_to_avoid;
+
+	for (HeeksObj *object = GetFirstChild(); object != NULL; object = GetNextChild())
+    {
+		if ((object->GetType() == StlSolidType) || (object->GetType() == SolidType))
+		{
+			solids_to_avoid.push_back(object);
+		}
+	}
+
 
     for (HeeksObj *object = GetFirstChild(); object != NULL; object = GetNextChild())
     {
@@ -1043,17 +848,8 @@ Python CContour::AppendTextToProgram( CMachineState *pMachineState )
 
                     TopoDS_Shape wire = fix.Wire();
 
-                    BRepBuilderAPI_Transform transform1(pMachineState->Fixture().GetMatrix(CFixture::YZ));
-                    transform1.Perform(wire, false);
-                    wire = transform1.Shape();
-
-                    BRepBuilderAPI_Transform transform2(pMachineState->Fixture().GetMatrix(CFixture::XZ));
-                    transform2.Perform(wire, false);
-                    wire = transform2.Shape();
-
-                    BRepBuilderAPI_Transform transform3(pMachineState->Fixture().GetMatrix(CFixture::XY));
-                    transform3.Perform(wire, false);
-                    wire = transform3.Shape();
+					// Rotate and translate the wire to align with the fixture (if necessary)
+                    pMachineState->Fixture().Adjustment(wire);
 
                     BRepOffsetAPI_MakeOffset offset_wire(TopoDS::Wire(wire));
 
@@ -1092,12 +888,20 @@ Python CContour::AppendTextToProgram( CMachineState *pMachineState )
                             transform.Perform(tool_path_wire, false); // notice false as second parameter
                             tool_path_wire = TopoDS::Wire(transform.Shape());
 
-                            python << GeneratePathFromWire(	tool_path_wire,
-                                                            pMachineState,
-                                                            m_depth_op_params.ClearanceHeight(),
-                                                            m_depth_op_params.m_rapid_safety_space,
-                                                            m_depth_op_params.m_start_depth,
-                                                            m_params.m_entry_move_type );
+/*
+							HeeksObj *tool_path_sketch = heeksCAD->NewSketch();
+							if (heeksCAD->ConvertWireToSketch(tool_path_wire, tool_path_sketch, 0.001))
+							{
+								tool_path_sketch->OnEditString(_T("tool path sketch"));
+								heeksCAD->Add(tool_path_sketch, NULL);
+							}
+*/
+                            python << GCode(	tool_path_wire,
+                                                pMachineState,
+                                                m_depth_op_params.ClearanceHeight(),
+                                                m_depth_op_params.m_rapid_safety_space,
+                                                m_depth_op_params.m_start_depth,
+                                                m_params.m_entry_move_type );
                         } // End if - then
                     } // End for
                 } // End for
@@ -1105,6 +909,7 @@ Python CContour::AppendTextToProgram( CMachineState *pMachineState )
             catch (Standard_Failure & error) {
                 (void) error;	// Avoid the compiler warning.
                 Handle_Standard_Failure e = Standard_Failure::Caught();
+				wxMessageBox(Ctt(e->GetMessageString()));
                 number_of_bad_sketches++;
             } // End catch
         } // End if - else
@@ -1238,6 +1043,36 @@ std::list<wxString> CContour::DesignRulesAdjustment(const bool apply_changes)
 {
 	std::list<wxString> changes;
 
+	// Make some special checks if we're using a chamfering bit.
+	if (m_tool_number > 0)
+	{
+		CTool *pTool = (CTool *) CTool::Find( m_tool_number );
+		if (pTool != NULL)
+		{
+			if ((pTool->m_params.m_type != CToolParams::eEndmill) &&
+				(pTool->m_params.m_type != CToolParams::eBallEndMill) &&
+				(pTool->m_params.m_type != CToolParams::eChamfer) &&
+				(pTool->m_params.m_type != CToolParams::eExtrusion) &&
+				(pTool->m_params.m_type != CToolParams::eEngravingTool) &&
+				(pTool->m_params.m_type != CToolParams::eSlotCutter))
+			{
+				wxString change;
+				change << DesignRulesPreamble() << _("found with ") << pTool->m_params.m_type;
+				changes.push_back(change);
+			}
+
+			if ((m_params.m_entry_move_type == CContourParams::eRamp) && (pTool->m_params.m_gradient >= 0.0))
+			{
+				wxString change;
+				change << DesignRulesPreamble() << _("Entry move type RAMP selected but ") << pTool->m_title << _(" gradient >= 0.0");
+				changes.push_back(change);
+			}
+		} // End if - then
+	} // End if - then
+
+	std::list<wxString> extra_changes = CDepthOp::DesignRulesAdjustment(apply_changes);
+	std::copy( extra_changes.begin(), extra_changes.end(), std::inserter( changes, changes.end() ));
+
 	return(changes);
 
 } // End DesignRulesAdjustment() method
@@ -1255,7 +1090,10 @@ bool CContour::CanAdd( HeeksObj *object )
         case CircleType:
         case SketchType:
 		case LineType:
+		case SplineType:
 		case FixtureType:
+		case StlSolidType:
+		case SolidType:
             return(true);
 
         default:
@@ -1269,7 +1107,8 @@ void CContour::GetTools(std::list<Tool*>* t_list, const wxPoint* p)
     CDepthOp::GetTools( t_list, p );
 }
 
-static void on_set_spline_deviation(double value, HeeksObj* object){
+static void on_set_spline_deviation(double value, HeeksObj* object)
+{
 	CContour::max_deviation_for_spline_to_arc = value;
 	CContour::WriteToConfig();
 }
@@ -1329,4 +1168,409 @@ bool CContour::IsDifferent(HeeksObj* other)
 	return(! (*this == (*((CContour *) other))));
 }
 
-#endif
+/**
+	Try to add this path to the contiguous list of paths.  If it doesn't
+	connect with the existing list of paths then it returns failure.
+ */
+bool CContour::ContiguousPath::Add(CContour::Path path)
+{
+	if (m_paths.size() == 0)
+	{
+		m_paths.push_back(path);
+		return(true);
+	}
+	else if (m_paths.begin()->StartPoint() == path.StartPoint())
+	{
+		path.Reverse();
+		m_paths.insert(m_paths.begin(), path);
+		return(true);
+	}
+	else if (m_paths.begin()->StartPoint() == path.EndPoint())
+	{
+		m_paths.insert(m_paths.begin(), path);
+		return(true);
+	}
+	else if (m_paths.rbegin()->EndPoint() == path.StartPoint())
+	{
+		m_paths.push_back(path);
+		return(true);
+	}
+	else if (m_paths.rbegin()->EndPoint() == path.EndPoint())
+	{
+		path.Reverse();
+		m_paths.push_back(path);
+		return(true);
+	}
+	else
+	{
+		return(false);
+	}
+}
+
+void CContour::Paths::Add(const TopoDS_Edge edge)
+{
+	Add(Path(edge));
+}
+
+void CContour::Paths::Add(const TopoDS_Wire wire)
+{
+	for(BRepTools_WireExplorer expEdge(wire); expEdge.More(); expEdge.Next())
+	{
+		Add(Path(expEdge.Current()));
+	}
+}
+
+
+/**
+	Add a single Path (really a TopoDS_Edge) into either an existing ContiguousPath
+	object or a new ContiguousPath object.  If the addition of this Path into an
+	existing one means that two ContiguousPath objects can now be joined, then join
+	them to form a single, longer, ContiguousPath object.  We always want our list
+	of ContiguousPath objects to be connected if possible.
+ */
+void CContour::Paths::Add(const Path path)
+{
+	bool added = false;
+
+	// See if we can add it to any of the existing contiguous paths.
+	for (std::vector<ContiguousPath>::iterator itContiguousPath = m_contiguous_paths.begin(); (! added) && (itContiguousPath != m_contiguous_paths.end()); itContiguousPath++)
+	{
+		if (itContiguousPath->Add(path))
+		{
+			added = true;
+		}
+	}
+
+	if (! added)
+	{
+		ContiguousPath new_path;
+		new_path.Add(path);
+		m_contiguous_paths.push_back(new_path);
+		return;
+	}
+	else
+	{
+		// It was added to one of the existing paths.  We need to check to see if this is the
+		// missing link joining any of the existing paths together.
+
+		bool join_found = false;
+		do {
+			join_found = false;
+
+			for (std::vector<ContiguousPath>::iterator lhs = m_contiguous_paths.begin();
+				 (join_found == false) && (lhs != m_contiguous_paths.end()); lhs++)
+			{
+				for (std::vector<ContiguousPath>::iterator rhs = m_contiguous_paths.begin();
+				 (join_found == false) && (rhs != m_contiguous_paths.end()); rhs++)
+				{
+					if (lhs == rhs) continue;
+
+					if (lhs->StartPoint() == rhs->EndPoint())
+					{
+						join_found = true;
+						*rhs += *lhs;
+						lhs = m_contiguous_paths.erase(lhs);
+						break;
+					}
+					else if (lhs->EndPoint() == rhs->StartPoint())
+					{
+						join_found = true;
+						*lhs += *rhs;
+						rhs = m_contiguous_paths.erase(rhs);
+						break;
+					}
+					else if (lhs->StartPoint() == rhs->StartPoint())
+					{
+						join_found = true;
+						rhs->Reverse();
+						*lhs += *rhs;
+						rhs = m_contiguous_paths.erase(rhs);
+						break;
+					}
+					else if (lhs->EndPoint() == rhs->EndPoint())
+					{
+						join_found = true;
+						rhs->Reverse();
+						*lhs += *rhs;
+						rhs = m_contiguous_paths.erase(rhs);
+						break;
+					}
+				} // End for
+			} // End for
+		} while (join_found);
+	}
+}
+
+
+/**
+	Append all Path objects within the rhs contiguous path into our own contiguous path.
+	We use the Add() routine to add the Path objects at either the beginning or the end of this
+	contiguous path as necessary.
+ */
+CContour::ContiguousPath & CContour::ContiguousPath::operator+=( ContiguousPath &rhs )
+{
+	for (std::vector<Path>::iterator itPath = rhs.m_paths.begin(); itPath != rhs.m_paths.end(); itPath++)
+	{
+		Add(*itPath);
+	}
+
+	return(*this);
+}
+
+
+/**
+	Generate a Sketch object representing all the ContiguousPath objects we contain.
+ */
+bool CContour::Paths::GenerateSketches() const
+{
+    for (std::vector<ContiguousPath>::const_iterator itPath = m_contiguous_paths.begin(); itPath != m_contiguous_paths.end(); itPath++)
+    {
+        HeeksObj *object = itPath->Sketch();
+        if (object) heeksCAD->Add( object, NULL );
+    }
+    return(true);
+}
+
+
+/**
+	Generate a Sketch representing all the Path objects we contain.
+ */
+HeeksObj *CContour::ContiguousPath::Sketch() const
+{
+    HeeksObj *sketch = heeksCAD->NewSketch();
+    for (std::vector<Path>::const_iterator itPath = m_paths.begin(); itPath != m_paths.end(); itPath++)
+    {
+        HeeksObj *object = itPath->Sketch();
+        if (object) sketch->Add( object, NULL );
+    }
+    return(sketch);
+}
+
+
+/**
+	Generate a Sketch representing this Path.
+ */
+HeeksObj *CContour::Path::Sketch() const
+{
+	Python python;
+
+	double tolerance = heeksCAD->GetTolerance();
+
+	BRepAdaptor_Curve curve(m_edge);
+	GeomAbs_CurveType curve_type = curve.GetType();
+
+	CNCPoint start;
+    gp_Vec vector_start;
+    curve.D1(StartParameter(), start, vector_start);
+
+    CNCPoint end;
+    gp_Vec vector_end;
+    curve.D1(EndParameter(), end, vector_end);
+
+  	switch(curve_type)
+	{
+		case GeomAbs_Line:
+			// make a line
+		{
+		    double s[3], e[3];
+		    start.ToDoubleArray(s);
+		    end.ToDoubleArray(e);
+
+		    return( heeksCAD->NewLine( s, e ) );
+		}
+		break;
+
+		case GeomAbs_Circle:
+		{
+			gp_Circ circle = curve.Circle();
+            CNCPoint centre( circle.Location() );
+            bool l_bClockwise = Clockwise(circle);
+            if (m_is_forwards == false) l_bClockwise = ! l_bClockwise;
+
+            if (curve.IsPeriodic())
+			{
+				// It's a full circle.
+				// gp_Circ circ(gp_Ax2(Start(),gp_Dir(0,0,-1)), (m_aperture.OutsideDiameter()/2.0));
+				// return( new HCircle( circ, &wxGetApp().current_color ) );
+			}
+			else
+			{
+				// It's an arc
+                double start[3]; StartPoint().ToDoubleArray(start);
+                double end[3];   EndPoint().ToDoubleArray(end);
+                double centre[3]; CNCPoint(circle.Location()).ToDoubleArray(centre);
+                double up[3];
+
+                up[0] = 0;
+                up[1] = 0;
+                up[2] = (Clockwise(circle)?-1:+1);
+
+				return(heeksCAD->NewArc(start, end, centre, up ));
+			}
+		}
+        break;
+	} // End switch
+
+	return(NULL);
+
+}
+
+
+/**
+	Aggregate the lengths of all Path objects we contain.
+ */
+Standard_Real CContour::ContiguousPath::Length() const
+{
+	Standard_Real length = 0.0;
+	for (std::vector<Path>::const_iterator itPath = m_paths.begin(); itPath != m_paths.end(); itPath++)
+	{
+		length += itPath->Length();
+	}
+
+	return(length);
+}
+
+/**
+	This routine reverses the direction of each path object as well as sets a boolean
+	indicating the direction to use when iterating through the Path objects.  The order
+	of the actual list of Path objects is not changed.  Once this is done, the Ramp()
+	method is always able to move from StartPoint() to EndPoint() no matter whether it's
+	going forwards or backwards through the list of Path objects.
+ */
+void CContour::ContiguousPath::Reverse()
+{
+	for (std::vector<Path>::iterator itPath = m_paths.begin(); itPath != m_paths.end(); itPath++)
+	{
+		itPath->Reverse();
+	}
+	m_is_forwards = ! m_is_forwards;
+}
+
+
+bool CContour::ContiguousPath::Periodic() const
+{
+    if (StartPoint() == EndPoint()) return(true);
+    return(false);
+}
+
+/**
+	If we're iterating through the ContiguousPath, this routine figures out what the next
+	Path in the chain is.  It handles going forwards and backwards through the list of
+	Path objects.  It also handles whether the ContiguousPath is Periodic (i.e. a closed
+	shape) or not.  The Ramp() method uses this method to iterate backwards and forwards
+	through the Path objects moving slowly downwards in Z until the necessary depths are
+	achieved.
+ */
+std::vector<CContour::Path>::iterator CContour::ContiguousPath::Next(std::vector<CContour::Path>::iterator itPath)
+{
+    if (m_paths.size() == 1)
+    {
+        Reverse();
+        return(itPath);
+    }
+
+    if (m_is_forwards)
+    {
+        if (itPath == m_paths.end())
+        {
+            if (Periodic())
+            {
+                itPath = m_paths.begin();
+            }
+            else
+            {
+                Reverse();
+            }
+        }
+        else
+        {
+            itPath++;
+            if (itPath == m_paths.end())
+            {
+                if (Periodic())
+                {
+                    itPath = m_paths.begin();
+                }
+                else
+                {
+                    Reverse();
+                    itPath = m_paths.end() - 1;
+                }
+            }
+        }
+        return(itPath);
+    }
+    else
+    {
+        // Moving backwards.
+        if (itPath == m_paths.begin())
+        {
+            if (Periodic())
+            {
+                itPath = m_paths.end() - 1;
+            }
+            else
+            {
+                Reverse();
+            }
+        }
+        else
+        {
+            itPath--;
+        }
+
+        return(itPath);
+    }
+}
+
+
+CNCPoint CContour::ContiguousPath::StartPoint() const
+{
+	if (m_paths.size() == 0) return(CNCPoint(0.0,0.0,0.0));
+	if (m_is_forwards)
+	{
+	    return(m_paths.begin()->StartPoint());
+	}
+	else
+	{
+	    return((m_paths.end()-1)->StartPoint());
+	}
+}
+
+CNCPoint CContour::ContiguousPath::EndPoint() const
+{
+	if (m_paths.size() == 0) return(CNCPoint(0.0,0.0,0.0));
+	if (m_is_forwards)
+	{
+	    return((m_paths.end()-1)->EndPoint());
+	}
+	else
+	{
+	    return(m_paths.begin()->EndPoint());
+	}
+}
+
+
+Standard_Real CContour::Path::StartParameter() const
+{
+	if (m_is_forwards)
+	{
+		return(m_curve.FirstParameter());
+	}
+	else
+	{
+		return(m_curve.LastParameter());
+	}
+}
+
+Standard_Real CContour::Path::EndParameter() const
+{
+	if (m_is_forwards)
+	{
+		return(m_curve.LastParameter());
+	}
+	else
+	{
+		return(m_curve.FirstParameter());
+	}
+}

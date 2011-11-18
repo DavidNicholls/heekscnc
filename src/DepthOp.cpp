@@ -336,58 +336,33 @@ std::list<wxString> CDepthOp::DesignRulesAdjustment(const bool apply_changes)
 	std::list<wxString> changes;
 
 	CTool *pTool = CTool::Find( m_tool_number );
-	if (pTool == NULL)
-	{
-#ifdef UNICODE
-		std::wostringstream l_ossChange;
-#else
-		std::ostringstream l_ossChange;
-#endif
-
-		l_ossChange << _("WARNING") << ": " << _("Depth Operation") << " (id=" << m_id << ") " << _("does not have a tool assigned") << ". " << _("It can not produce GCode without a tool assignment") << ".\n";
-		changes.push_back(l_ossChange.str().c_str());
-	} // End if - then
-	else
+	if (pTool != NULL)
 	{
 		double cutting_depth = m_depth_op_params.m_start_depth - m_depth_op_params.m_final_depth;
 		if (cutting_depth > pTool->m_params.m_cutting_edge_height)
 		{
-#ifdef UNICODE
-			std::wostringstream l_ossChange;
-#else
-			std::ostringstream l_ossChange;
-#endif
-
-			l_ossChange << _("WARNING") << ": " << _("Depth Operation") << " (id=" << m_id << ") " << _("is set to cut deeper than the assigned tool will allow") << ".\n";
-			changes.push_back(l_ossChange.str().c_str());
+			wxString change;
+			change << DesignRulesPreamble() << _("is set to cut deeper than the assigned tool will allow");
+			changes.push_back(change);
 		} // End if - then
 	} // End if - else
 
 	if (m_depth_op_params.m_start_depth <= m_depth_op_params.m_final_depth)
 	{
-#ifdef UNICODE
-		std::wostringstream l_ossChange;
-#else
-		std::ostringstream l_ossChange;
-#endif
-		l_ossChange << _("WARNING") << ": " << _("Depth Operation") << " (id=" << m_id << ") " << _("has poor start and final depths") << ". " << _("Can't change this setting automatically") << ".\n";
-		changes.push_back(l_ossChange.str().c_str());
+		wxString change;
+		change << DesignRulesPreamble() << _("has poor start and final depths. Can't change this setting automatically.\n");
+		changes.push_back(change);
 	} // End if - then
 
 	if (m_depth_op_params.m_start_depth > m_depth_op_params.ClearanceHeight())
 	{
-#ifdef UNICODE
-		std::wostringstream l_ossChange;
-#else
-		std::ostringstream l_ossChange;
-#endif
-
-		l_ossChange << _("WARNING") << ": " << _("Depth Operation") << " (id=" << m_id << ") " << _("Clearance height is below start depth") << ".\n";
-		changes.push_back(l_ossChange.str().c_str());
+		wxString change;
+		change << DesignRulesPreamble() << _("Clearance height is below start depth.\n");
+		changes.push_back(change);
 
 		if (apply_changes)
 		{
-			l_ossChange << _("Depth Operation") << " (id=" << m_id << ").  " << _("Raising clearance height up to start depth (+5 mm)") << "\n";
+			change << DesignRulesPreamble() << _("Raising clearance height up to start depth (+5 mm)\n");
 			m_depth_op_params.ClearanceHeight( m_depth_op_params.m_start_depth + 5 );
 		} // End if - then
 	} // End if - then
@@ -396,7 +371,7 @@ std::list<wxString> CDepthOp::DesignRulesAdjustment(const bool apply_changes)
     {
         wxString change;
 
-        change << _("The step-down value for pocket (id=") << m_id << _(") must be positive");
+        change << DesignRulesPreamble() << _("The step-down value for pocket must be positive");
         changes.push_back(change);
 
         if (apply_changes)
@@ -404,6 +379,9 @@ std::list<wxString> CDepthOp::DesignRulesAdjustment(const bool apply_changes)
             m_depth_op_params.m_step_down *= -1.0;
         }
     }
+
+	std::list<wxString> extra_changes = CSpeedOp::DesignRulesAdjustment(apply_changes);
+	std::copy( extra_changes.begin(), extra_changes.end(), std::inserter( changes, changes.end() ));
 
 	return(changes);
 
@@ -465,7 +443,6 @@ double CDepthOpParams::ClearanceHeight() const
 	case CProgram::eClearanceDefinedByMachine:
 		return(theApp.m_program->m_machine.m_clearance_height);
 
-#ifndef STABLE_OPS_ONLY
 	case CProgram::eClearanceDefinedByFixture:
 		// We need to figure out which is the 'active' fixture and return
 		// the clearance height from that fixture.
@@ -479,7 +456,6 @@ double CDepthOpParams::ClearanceHeight() const
 			// This should not occur.  In any case, use the clearance value from the individual operation.
 			return(m_clearance_height);
 		}
-#endif // STABLE_OPS_ONLY
 
 	case CProgram::eClearanceDefinedByOperation:
 	default:

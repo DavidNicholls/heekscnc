@@ -1,7 +1,5 @@
 
 #include "stdafx.h"
-#ifndef STABLE_OPS_ONLY
-
 #include "Chamfer.h"
 #include "interface/PropertyLength.h"
 #include "CNCPoint.h"
@@ -14,6 +12,7 @@
 #include "Profile.h"
 #include "Contour.h"
 #include "Inlay.h"
+#include "Operations.h"
 
 #include <BRepOffsetAPI_MakeOffset.hxx>
 #include <TopoDS.hxx>
@@ -304,10 +303,13 @@ Python CChamfer::AppendTextForCircularChildren(
 
 		if (hole_diameter < min_chamfer_diameter)
 		{
+			// The flat radius at the bottom of the chamfering bit is larger than the drilled hole.  It won't fit in.
 			printf("Ignoring chamfer for drilled hole due to geometry of selected chamfering bit\n");
 			return(python);	// Empty.
 		}
 
+		// Get all the point locations relevant for this operation and then adjust their position to align with
+		// the current fixture.
 		std::vector<CNCPoint> locations = CDrilling::FindAllLocations(pDrilling, pMachineState->Location(), true, NULL);
         for (std::vector<CNCPoint>::const_iterator l_itLocation = locations.begin(); l_itLocation != locations.end(); l_itLocation++)
 		{
@@ -332,6 +334,8 @@ Python CChamfer::AppendTextForCircularChildren(
 		} // End for
 	}
 
+	// Now handle all the chamfering for both the drilled holes and/or the counterbores.
+	// The circles indicate both the diameter and the depth of either hole.
 	for (Circles_t::iterator l_itCircle = circles.begin(); l_itCircle != circles.end(); l_itCircle++)
 	{
 		// We want to select a depth such that we're cutting with the top-most part of the chamfering
@@ -609,12 +613,9 @@ Python CChamfer::AppendTextForProfileChildren(
 			{
 				sketches.push_back(object);
 			}
-		}		
+		}
 	}
 
-	
-
-    // for (HeeksObj *object = child->GetFirstChild(); object != NULL; object = child->GetNextChild())
 	for (std::list<HeeksObj *>::iterator itChild = sketches.begin(); itChild != sketches.end(); itChild++)
     {
 		HeeksObj *object = *itChild;
@@ -644,17 +645,7 @@ Python CChamfer::AppendTextForProfileChildren(
 
                     TopoDS_Shape wire = fix.Wire();
 
-                    BRepBuilderAPI_Transform transform1(pMachineState->Fixture().GetMatrix(CFixture::YZ));
-                    transform1.Perform(wire, false);
-                    wire = transform1.Shape();
-
-                    BRepBuilderAPI_Transform transform2(pMachineState->Fixture().GetMatrix(CFixture::XZ));
-                    transform2.Perform(wire, false);
-                    wire = transform2.Shape();
-
-                    BRepBuilderAPI_Transform transform3(pMachineState->Fixture().GetMatrix(CFixture::XY));
-                    transform3.Perform(wire, false);
-                    wire = transform3.Shape();
+                    wire = pMachineState->Fixture().Adjustment(wire);
 
                     BRepOffsetAPI_MakeOffset offset_wire(TopoDS::Wire(wire));
 
@@ -725,12 +716,12 @@ Python CChamfer::AppendTextForProfileChildren(
                             transform.Perform(tool_path_wire, false); // notice false as second parameter
                             tool_path_wire = TopoDS::Wire(transform.Shape());
 
-							python << CContour::GeneratePathFromWire(	tool_path_wire,
-                                                            pMachineState,
-                                                            clearance_height,
-                                                            rapid_safety_space,
-                                                            start_depth,
-															CContourParams::ePlunge );
+							python << CContour::GCode(	tool_path_wire,
+                                                        pMachineState,
+                                                        clearance_height,
+                                                        rapid_safety_space,
+                                                        start_depth,
+                                                        CContourParams::ePlunge );
                         } // End if - then
                     } // End for
                 } // End for
@@ -793,16 +784,19 @@ Python CChamfer::AppendTextToProgram(CMachineState *pMachineState)
 		// assumption that it's a chamfering bit.  If not, we can't handle the
 		// mathematics (at least I can't).
 
-		printf("Only chamfering bits are supported for chamfer operations\n");
+		wxMessageBox(_T("Only chamfering bits are supported for chamfer operations"));
 		return(python);
 	}
 
 	if (m_params.m_chamfer_width > pChamferingBit->m_params.m_cutting_edge_height)
 	{
 		// We don't support multiple passes to chamfer the edge (yet).  Just don't try.
-		printf("Chamfer width %lf is too large for a single pass of the chamfering bit's edge (%lf)\n",
-				m_params.m_chamfer_width / theApp.m_program->m_units,
-				pChamferingBit->m_params.m_cutting_edge_height / theApp.m_program->m_units );
+		wxString text;
+		text << _("Chamfer width ") << m_params.m_chamfer_width / theApp.m_program->m_units
+			<< _(" is too large for a single pass of the chamfering bit's edge (")
+			<< pChamferingBit->m_params.m_cutting_edge_height / theApp.m_program->m_units
+			<< _(")");
+		wxMessageBox(text);
 		return(python);
 	}
 
@@ -924,4 +918,95 @@ bool CChamfer::operator== ( const CChamfer & rhs ) const
 	return(CDepthOp::operator==(rhs));
 }
 
-#endif
+
+/**
+	This method adjusts any parameters that don't make sense.  It should report a list
+	of changes in the list of strings.
+ */
+std::list<wxString> CChamfer::DesignRulesAdjustment(const bool apply_changes)
+{
+	std::list<wxString> changes;
+
+	// Make some special checks if we're using a chamfering bit.
+	if (m_tool_number > 0)
+	{
+		CTool *pChamfer = (CTool *) CTool::Find( m_tool_number );
+		if (pChamfer != NULL)
+		{
+			std::vector<CNCPoint> these_locations = CDrilling::FindAllLocations(this);
+
+			if (pChamfer->m_params.m_type == CToolParams::eChamfer)
+			{
+				// We need to make sure that the diameter of the hole (that will
+				// have been drilled in a previous drilling operation) is between
+				// the chamfering bit's flat_radius (smallest) and diamter/2 (largest).
+
+				// First find ALL drilling cycles that created this hole.  Make sure
+				// to get them all as we may have used a centre drill before the
+				// main hole is drilled.
+
+				for (HeeksObj *obj = theApp.m_program->Operations()->GetFirstChild();
+					obj != NULL;
+					obj = theApp.m_program->Operations()->GetNextChild())
+				{
+					if (obj->GetType() == DrillingType)
+					{
+						// Make sure we're looking at a hole drilled with something
+						// more than a centre drill.
+						CToolParams::eToolType type = CTool::CutterType( ((COp *)obj)->m_tool_number );
+						if (	(type == CToolParams::eDrill) ||
+							(type == CToolParams::eEndmill) ||
+							(type == CToolParams::eSlotCutter) ||
+							(type == CToolParams::eBallEndMill))
+						{
+							// See if any of the other drilling locations line up
+							// with our drilling locations.  If so, we must be
+							// chamfering a previously drilled hole.
+
+							std::vector<CNCPoint> previous_locations = CDrilling::FindAllLocations((CDrilling *)obj);
+							std::vector<CNCPoint> common_locations;
+							std::set_intersection( previous_locations.begin(), previous_locations.end(),
+										these_locations.begin(), these_locations.end(),
+										std::inserter( common_locations, common_locations.begin() ));
+							if (common_locations.size() > 0)
+							{
+								// We're here.  We must be chamfering a hole we've
+								// drilled previously.  Check the diameters.
+
+								CTool *pPreviousTool = CTool::Find( ((COp *)obj)->m_tool_number );
+								if (pPreviousTool->CuttingRadius() < pChamfer->m_params.m_flat_radius)
+								{
+									wxString change;
+									change << DesignRulesPreamble() << _("Chamfering bit for drilling op") << _(" (id=") << m_id << _T(") ") << _("is too big for previously drilled hole") ;
+									changes.push_back( change );
+								} // End if - then
+
+								if (pPreviousTool->CuttingRadius() > (pChamfer->m_params.m_diameter/2.0))
+								{
+									wxString change;
+									change << DesignRulesPreamble() << _("Chamfering bit for drilling op") << _(" (id=") << m_id << _T(") ") << _("is too small for previously drilled hole");
+									changes.push_back( change );
+								} // End if - then
+							} // End if - then
+
+						} // End if - then
+					} // End if - then
+				} // End for
+			} // End if - then
+			else
+			{
+				wxString change;
+				change << DesignRulesPreamble() << _("found with ") << pChamfer->m_params.m_type;
+				changes.push_back(change);
+			}
+		} // End if - then
+	} // End if - then
+
+	std::list<wxString> extra_changes = CDepthOp::DesignRulesAdjustment(apply_changes);
+	std::copy( extra_changes.begin(), extra_changes.end(), std::inserter( changes, changes.end() ));
+
+	return(changes);
+
+} // End DesignRulesAdjustment() method
+
+

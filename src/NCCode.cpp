@@ -18,6 +18,7 @@
 #include "CTool.h"
 #include "src/Geom.h"
 #include "Program.h"
+#include "Fixtures.h"
 
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Solid.hxx>
@@ -107,10 +108,30 @@ void PathLine::ReadFromXMLElement(TiXmlElement* pElem)
 	PathObject::ReadFromXMLElement(pElem);
 }
 
-void PathLine::glVertices(const PathObject* prev_po)
+void PathLine::glVertices(const PathObject* prev_po, CFixture *pFixture)
 {
-	if(prev_po)glVertex3dv(prev_po->m_x);
-	glVertex3dv(m_x);
+	if(prev_po)
+	{
+		if (pFixture)
+		{
+			gp_Pnt point( pFixture->ReverseAdjustment( gp_Pnt(prev_po->m_x[0], prev_po->m_x[1], prev_po->m_x[2] )));
+			glVertex3d(point.X(), point.Y(), point.Z());
+		}
+		else
+		{
+			glVertex3dv(prev_po->m_x);
+		}
+	}
+
+	if (pFixture)
+	{
+		gp_Pnt point( pFixture->ReverseAdjustment( gp_Pnt(m_x[0], m_x[1], m_x[2] )));
+		glVertex3d(point.X(), point.Y(), point.Z());
+	}
+	else
+	{
+		glVertex3dv(m_x);
+	}
 }
 
 void PathArc::GetBox(CBox &box,const PathObject* prev_po)
@@ -236,15 +257,33 @@ void PathArc::SetFromRadius()
 	}
 }
 
-void PathArc::glVertices(const PathObject* prev_po)
+void PathArc::glVertices(const PathObject* prev_po, CFixture *pFixture)
 {
 	if (prev_po == NULL) return;
 
 	std::list<gp_Pnt> vertices = Interpolate( prev_po, CNCCode::s_arc_interpolation_count );
-	glVertex3dv(prev_po->m_x);
+
+	if (pFixture)
+	{
+		gp_Pnt point( pFixture->ReverseAdjustment( gp_Pnt( prev_po->m_x[0], prev_po->m_x[1], prev_po->m_x[2] )) );
+		glVertex3d( point.X(), point.Y(), point.Z() );
+	}
+	else
+	{
+		glVertex3dv(prev_po->m_x);
+	}
+
 	for (std::list<gp_Pnt>::const_iterator l_itVertex = vertices.begin(); l_itVertex != vertices.end(); l_itVertex++)
 	{
-		glVertex3d(l_itVertex->X(), l_itVertex->Y(), l_itVertex->Z());
+		if (pFixture)
+		{
+			gp_Pnt point( pFixture->ReverseAdjustment( *l_itVertex ));
+			glVertex3d( point.X(), point.Y(), point.Z() );
+		}
+		else
+		{
+			glVertex3d(l_itVertex->X(), l_itVertex->Y(), l_itVertex->Z());
+		}
 	} // End for
 }
 
@@ -312,6 +351,7 @@ const ColouredPath &ColouredPath::operator=(const ColouredPath& c)
 {
 	Clear();
 	m_color_type = c.m_color_type;
+	m_eCoordinateSystemNumber = c.m_eCoordinateSystemNumber;
 	for(std::list< PathObject* >::const_iterator It = c.m_points.begin(); It != c.m_points.end(); It++)
 	{
 		PathObject* object = *It;
@@ -332,16 +372,17 @@ void ColouredPath::Clear()
 
 void ColouredPath::glCommands()
 {
+	CFixture *pFixture = theApp.m_program->Fixtures()->Find(m_eCoordinateSystemNumber);
+
 	CNCCode::Color(m_color_type).glColor();
 	glBegin(GL_LINE_STRIP);
 	for(std::list< PathObject* >::iterator It = m_points.begin(); It != m_points.end(); It++)
 	{
 		PathObject* po = *It;
-		po->glVertices(CNCCode::prev_po);
+		po->glVertices(CNCCode::prev_po, pFixture);
 		CNCCode::prev_po = po;
 	}
 	glEnd();
-
 }
 
 void ColouredPath::GetBox(CBox &box)
@@ -361,6 +402,7 @@ void ColouredPath::WriteXML(TiXmlNode *root)
 	heeksCAD->LinkXMLEndChild( root,  element );
 
 	element->SetAttribute( "col", CNCCode::GetColor(m_color_type));
+	element->SetAttribute( "fixture", int(m_eCoordinateSystemNumber ));
 	for(std::list< PathObject* >::iterator It = m_points.begin(); It != m_points.end(); It++)
 	{
 		PathObject* po = *It;
@@ -372,6 +414,14 @@ void ColouredPath::ReadFromXMLElement(TiXmlElement* element)
 {
 	// get the attributes
 	m_color_type = CNCCode::GetColor(element->Attribute("col"), ColorRapidType);
+	if (element->Attribute("fixture")) 
+	{
+		m_eCoordinateSystemNumber = CFixture::eCoordinateSystemNumber_t(atoi(element->Attribute("fixture")));
+	}
+	else
+	{
+		m_eCoordinateSystemNumber = CFixture::G54;
+	}
 
 	// loop through all the objects
 	for(TiXmlElement* pElem = heeksCAD->FirstXMLChildElement( element ) ; pElem; pElem = pElem->NextSiblingElement())

@@ -91,62 +91,63 @@ extern CHeeksCADInterface* heeksCAD;
 #endif
 
 
+/* static */ const wxChar *CToolParams::ManuallyDefined = _("Manually Defined");
 
 
 
 CTool::tap_sizes_t metric_tap_sizes[] = {
-      {_T("M1x0.25 mm course"), 1.0, 0.25},
-      {_T("M1.2 x 0.25 mm course"), 1.2, 0.25},
-      {_T("M1.4 x 0.3 mm course"), 1.3, 0.3},
-      {_T("M1.6 x 0.35mm course"), 1.6, 0.35},
-      {_T("M1.8 x 0.35mm course"), 1.8, 0.35},
-      {_T("M2 x 0.4 mm course"), 2.0, 0.4},
-      {_T("M2.5 x 0.45 mm course"), 2.5, 0.45},
-      {_T("M3 x 0.5 mm course"), 3.0, 0.5},
-      {_T("M3.5 x 0.6 mm course"), 3.5, 0.6},
-      {_T("M4 x 0.7 mm course"), 4.0, 0.7},
-      {_T("M5 x 0.8 mm course"), 5.0, 0.8},
-      {_T("M6 x 1 mm course"), 6.0, 1.0},
-      {_T("M7 x 1 mm course"), 7.0, 1.0},
-      {_T("M8 x 1.25mm course"), 8.0, 1.25},
+      {_T("M1 x 0.25 mm coarse"), 1.0, 0.25},
+      {_T("M1.2 x 0.25 mm coarse"), 1.2, 0.25},
+      {_T("M1.4 x 0.3 mm coarse"), 1.3, 0.3},
+      {_T("M1.6 x 0.35mm coarse"), 1.6, 0.35},
+      {_T("M1.8 x 0.35mm coarse"), 1.8, 0.35},
+      {_T("M2 x 0.4 mm coarse"), 2.0, 0.4},
+      {_T("M2.5 x 0.45 mm coarse"), 2.5, 0.45},
+      {_T("M3 x 0.5 mm coarse"), 3.0, 0.5},
+      {_T("M3.5 x 0.6 mm coarse"), 3.5, 0.6},
+      {_T("M4 x 0.7 mm coarse"), 4.0, 0.7},
+      {_T("M5 x 0.8 mm coarse"), 5.0, 0.8},
+      {_T("M6 x 1 mm coarse"), 6.0, 1.0},
+      {_T("M7 x 1 mm coarse"), 7.0, 1.0},
+      {_T("M8 x 1.25mm coarse"), 8.0, 1.25},
       {_T("M8 x 1 mm fine"), 8.0, 1.0},
-      {_T("M10 x 1.5 mm course"), 10.0, 1.5},
+      {_T("M10 x 1.5 mm coarse"), 10.0, 1.5},
       {_T("M10 x 1 mm fine"), 10.0, 1.0},
       {_T("M10 x 1.25mm fine"), 10.0, 1.25},
-      {_T("M12 x 1.75mm course"), 12.0, 1.75},
+      {_T("M12 x 1.75mm coarse"), 12.0, 1.75},
       {_T("M12 x 1.5 mm fine"), 12.0, 1.5},
       {_T("M12 x 1.25mm fine"), 12.0, 1.25},
       {_T("M14 x 1.5 mm fine"), 14.0, 1.5},
-      {_T("M14 x 2 mm course"), 14.0, 2.0},
-      {_T("M16 x 2 mm course"), 16.0, 2.0},
+      {_T("M14 x 2 mm coarse"), 14.0, 2.0},
+      {_T("M16 x 2 mm coarse"), 16.0, 2.0},
       {_T("M16 x 1.5 mm fine"), 16.0, 1.5},
-      {_T("M18 x 2.5 mm course"), 18.0, 2.5},
+      {_T("M18 x 2.5 mm coarse"), 18.0, 2.5},
       {_T("M18 x 2 mm fine"), 18.0, 2.0},
       {_T("M18 x 1.5 mm fine"), 18.0, 1.5},
-      {_T("M20 x 2.5 mm course"), 20.0, 2.5},
+      {_T("M20 x 2.5 mm coarse"), 20.0, 2.5},
       {_T("M20 x 2 mm fine"), 20.0, 2.0},
       {_T("M20 x 1.5 mm fine"), 20.0, 1.5},
-      {_T("M30 x 3.5 mm course"), 30.0, 3.5},
+      {_T("M30 x 3.5 mm coarse"), 30.0, 3.5},
       {_T("M30 x 2 mm fine"), 30.0, 2.0},
-      {_T("M33 x 3.5 mm course"), 33.0, 3.5},
+      {_T("M33 x 3.5 mm coarse"), 33.0, 3.5},
       {_T("M33 x 2 mm fine"), 33.0, 2.0},
-      {_T("M36 x 4 mm course"), 36.0, 4.0},
+      {_T("M36 x 4 mm coarse"), 36.0, 4.0},
       {_T("M36 x 3 mm fine"), 36.0, 3.0},
-      {_T("M39 x 4 mm course"), 39.0, 4.0},
+      {_T("M39 x 4 mm coarse"), 39.0, 4.0},
       {_T("M39 x 3 mm fine"), 39.0, 3.0},
-      {_T("M42 x 4.5 mm course"), 42.0, 4.5},
+      {_T("M42 x 4.5 mm coarse"), 42.0, 4.5},
       {_T("M42 x 3 mm fine"), 42.0, 3.0},
-      {_T("M45 x 4.5 mm course"), 45.0, 4.5},
+      {_T("M45 x 4.5 mm coarse"), 45.0, 4.5},
       {_T("M45 x 3 mm fine"), 45.0, 3.0},
-      {_T("M48 x 5 mm course"), 48.0, 5.0},
+      {_T("M48 x 5 mm coarse"), 48.0, 5.0},
       {_T("M48 x 3 mm fine"), 48.0, 3.0},
-      {_T("M52 x 5 mm course"), 52.0, 5.0},
+      {_T("M52 x 5 mm coarse"), 52.0, 5.0},
       {_T("M52 x 4 mm fine"), 52.0, 4.0},
-      {_T("M56 x 5.5 mm course"), 56.0, 5.5},
+      {_T("M56 x 5.5 mm coarse"), 56.0, 5.5},
       {_T("M56 x 4 mm fine"), 56.0, 4.0},
-      {_T("M60 x 5.5 mm course"), 60.0, 5.5},
+      {_T("M60 x 5.5 mm coarse"), 60.0, 5.5},
       {_T("M60 x 4 mm fine"), 60.0, 4.0},
-      {_T("M64 x 6 mm course"), 64.0, 6.0},
+      {_T("M64 x 6 mm coarse"), 64.0, 6.0},
       {_T("M64 x 4 mm fine"), 64.0, 4.0},
       {_T("End of table marker"), -1.0, -1.0}   // WARNING DO NOT REMOVE THIS ENTRY.  IT MUST BE THE LAST ENTRY IN THE TABLE
     };
@@ -234,6 +235,30 @@ CTool::tap_sizes_t british_standard_whitworth_tap_sizes[] = {
     };
 
 
+// Standard sizes (by name)
+CTool::centre_drill_t centre_drill_sizes[] =
+{
+	{ CToolParams::ManuallyDefined, 1.0, 1.0, 1.0, 1.0 },
+	{ _T("#00"), (1.0 / 8.0) * 25.4,   0.025 * 25.4,        0.030 * 25.4,        (25.4 * 1.0) + ((1.0 / 8.0) * 25.4) },
+	{ _T("#0"),  (1.0 / 8.0) * 25.4,   (1.0 / 32.0) * 25.4, 0.038 * 25.4,        (25.4 * 1.0) + ((1.0 / 8.0) * 25.4) },
+	{ _T("#1"),  (1.0 / 8.0) * 25.4,   (3.0 / 64.0) * 25.4, (3.0 / 64.0) * 25.4, (25.4 * 1.0) + ((1.0 / 4.0) * 25.4) },
+	{ _T("#2"),  (3.0 / 16.0) * 25.4,  (5.0 / 64.0) * 25.4, (5.0 / 64.0) * 25.4, (25.4 * 1.0) + ((7.0 / 8.0) * 25.4) },
+	{ _T("#3"),  (1.0 / 4.0) * 25.4,   (7.0 / 64.0) * 25.4, (7.0 / 64.0) * 25.4, (25.4 * 2) },
+	{ _T("#4"),  (5.0 / 16.0) * 25.4,  (1.0 / 8.0) * 25.4,  (1.0 / 8.0) * 25.4,  (25.4 * 2) + ((1.0 / 8.0) * 25.4) },
+	{ _T("#5"),  (7.0 / 16.0) * 25.4,  (3.0 / 16.0) * 25.4, (3.0 / 16.0) * 25.4, (25.4 * 2) + ((3.0 / 4.0) * 25.4) },
+	{ _T("#6"),  (1.0 / 2.0) * 25.4,   (7.0 / 32.0) * 25.4, (7.0 / 32.0) * 25.4, (25.4 * 3)},
+	{ _T("#7"),  (5.0 / 8.0) * 25.4,   (1.0 / 4.0) * 25.4,  (1.0 / 4.0) * 25.4,  (25.4 * 3) + ((1.0 / 4.0) * 25.4) },
+	{ _T("#8"),  (3.0 / 4.0) * 25.4,   (5.0 / 16.0) * 25.4, (5.0 / 16.0) * 25.4, (25.4 * 3) + ((1.0 / 2.0) * 25.4) },
+	{ _T("#9"),  (0.875) * 25.4,       (0.3437) * 25.4,     (0.3437) * 25.4,     (25.4 * 3.625) },
+	{ _T("#10"), (1.0) * 25.4,         (0.375) * 25.4,      (0.375) * 25.4,      (25.4 * 3.75) }
+};
+
+
+static double degrees_to_radians( const double degrees )
+{
+	return( (degrees / 360) * 2 * PI );
+} // End degrees_to_radians() routine
+
 
 
 void CToolParams::set_initial_values()
@@ -276,6 +301,9 @@ void CToolParams::set_initial_values()
 	// The following are ONLY for tapping tools
 	config.Read(_T("m_direction"), &m_direction, 0);  // default to right-hand tap
 	config.Read(_T("m_pitch"), &m_pitch, 1.0);        // mm/rev, this would be for an M6 tap
+
+	// The following are ONLY for centre-drill tools
+	config.Read(_T("m_size"), &m_size, _T("#4"));
 	}
 
 void CToolParams::write_values_to_config()
@@ -322,6 +350,9 @@ void CToolParams::write_values_to_config()
 	// The following are ONLY for tapping tools
 	config.Write(_T("m_direction"), m_direction);
 	config.Write(_T("m_pitch"), m_pitch);
+
+	// The following are ONLY for centre-drill tools
+	config.Write(_T("m_size"), m_size);
 }
 
 void CTool::SetDiameter( const double diameter )
@@ -331,6 +362,7 @@ void CTool::SetDiameter( const double diameter )
 	{
 	    case CToolParams::eChamfer:
 	    case CToolParams::eEngravingTool:
+		case CToolParams::eCentreDrill:
 	    {
             // Recalculate the cutting edge length based on this new diameter
             // and the cutting angle.
@@ -483,10 +515,6 @@ static void on_set_gradient(double value, HeeksObj* object)
 }
 
 
-static double degrees_to_radians( const double degrees )
-{
-	return( (degrees / 360) * 2 * PI );
-} // End degrees_to_radians() routine
 
 
 double CToolParams::ReasonableGradient( const eToolType type ) const
@@ -501,7 +529,7 @@ double CToolParams::ReasonableGradient( const eToolType type ) const
         case CToolParams::eSlotCutter:
 		case CToolParams::eEndmill:
 		case CToolParams::eBallEndMill:
-				return(-1.0 / 10.0);  // 1 down for 10 across
+				return(-1.0 / 50.0);  // 1 down for 50 across
 
 
 		case CToolParams::eTouchProbe:
@@ -546,11 +574,22 @@ void CTool::ResetParametersToReasonableValues()
 				break;
 
 		case CToolParams::eCentreDrill:
-				m_params.m_corner_radius = 0;
-				m_params.m_flat_radius = 0;
-				m_params.m_cutting_edge_angle = 59;
-				m_params.m_cutting_edge_height = m_params.m_diameter * 1.0;
-				ResetTitle();
+			{
+				for (::size_t i=0; i<sizeof(centre_drill_sizes)/sizeof(centre_drill_sizes[0]); i++)
+				{
+					if (centre_drill_sizes[i].size == m_params.m_size)
+					{
+						m_params.m_corner_radius = 0;
+						m_params.m_flat_radius = 0;
+						m_params.m_cutting_edge_angle = 59;
+						m_params.m_diameter = centre_drill_sizes[i].drill_diameter;
+						m_params.m_cutting_edge_height = centre_drill_sizes[i].drill_length;
+						m_params.m_tool_length_offset = centre_drill_sizes[i].overall_length;
+						ResetTitle();
+					}
+				}
+			}
+
 				break;
 
 		case CToolParams::eEndmill:
@@ -831,6 +870,18 @@ void CTool::SelectTapFromStandardSizes(const tap_sizes_t *tap_sizes)
 }
 
 
+static void on_select_centre_drill_size(int choice, HeeksObj* object)
+{
+    if (choice < (sizeof(centre_drill_sizes)/sizeof(centre_drill_sizes[0])))
+	{
+		((CTool *)object)->m_params.m_size = centre_drill_sizes[choice].size;
+		((CTool *)object)->ResetTitle();
+		((CTool *)object)->ResetParametersToReasonableValues();
+        heeksCAD->RefreshProperties();
+        ((CTool *)object)->KillGLLists();
+        heeksCAD->Repaint();
+	}
+}
 
 void CToolParams::GetProperties(CTool* parent, std::list<Property *> *list)
 {
@@ -906,22 +957,44 @@ void CToolParams::GetProperties(CTool* parent, std::list<Property *> *list)
 	} // End if - then
 	else
 	{
-		// We're using milling/drilling tools
-		list->push_back(new PropertyLength(_("diameter"), m_diameter, parent, on_set_diameter));
-
-		if ((m_type != eExtrusion))
+		CTool::centre_drill_t *pCentreDrill = parent->CentreDrillDefinition(m_size);
+		if (m_type == eCentreDrill)
 		{
-		list->push_back(new PropertyLength(_("tool_length_offset"), m_tool_length_offset, parent, on_set_tool_length_offset));
+			{
+				int choice = 0;
+				std::list< wxString > choices;
+				for (::size_t i=0; i<(sizeof(centre_drill_sizes)/sizeof(centre_drill_sizes[0])); i++)
+				{
+					choices.push_back( centre_drill_sizes[i].size );
+					if (m_size == centre_drill_sizes[i].size)
+					{
+						choice = i;
+					}
+				}
+
+				list->push_back(new PropertyChoice(_("Centre-Drill Size"), choices, choice, parent, on_select_centre_drill_size));
+			}
 		}
 
-		if ((m_type != eTouchProbe) && (m_type != eToolLengthSwitch) && (m_type != eExtrusion))
+		if ((m_type != eCentreDrill) || ((m_type == eCentreDrill) && (pCentreDrill != NULL) && (pCentreDrill->size == CToolParams::ManuallyDefined)))
 		{
-			list->push_back(new PropertyLength(_("flat_radius"), m_flat_radius, parent, on_set_flat_radius));
-			list->push_back(new PropertyLength(_("corner_radius"), m_corner_radius, parent, on_set_corner_radius));
-			list->push_back(new PropertyDouble(_("cutting_edge_angle"), m_cutting_edge_angle, parent, on_set_cutting_edge_angle));
-			list->push_back(new PropertyLength(_("cutting_edge_height"), m_cutting_edge_height, parent, on_set_cutting_edge_height));
-			list->push_back(new PropertyDouble(_("gradient"), m_gradient, parent, on_set_gradient));
-		} // End if - then
+			// We're using milling/drilling tools
+			list->push_back(new PropertyLength(_("diameter"), m_diameter, parent, on_set_diameter));
+
+			if ((m_type != eExtrusion))
+			{
+			list->push_back(new PropertyLength(_("tool_length_offset"), m_tool_length_offset, parent, on_set_tool_length_offset));
+			}
+
+			if ((m_type != eTouchProbe) && (m_type != eToolLengthSwitch) && (m_type != eExtrusion))
+			{
+				list->push_back(new PropertyLength(_("flat_radius"), m_flat_radius, parent, on_set_flat_radius));
+				list->push_back(new PropertyLength(_("corner_radius"), m_corner_radius, parent, on_set_corner_radius));
+				list->push_back(new PropertyDouble(_("cutting_edge_angle"), m_cutting_edge_angle, parent, on_set_cutting_edge_angle));
+				list->push_back(new PropertyLength(_("cutting_edge_height"), m_cutting_edge_height, parent, on_set_cutting_edge_height));
+				list->push_back(new PropertyDouble(_("gradient"), m_gradient, parent, on_set_gradient));
+			} // End if - then
+		}
 	} // End if - else
 
 	if (m_type == eTouchProbe)
@@ -1017,6 +1090,8 @@ void CToolParams::WriteXMLAttributes(TiXmlNode *root)
 
 	element->SetDoubleAttribute( "pitch", m_pitch);
 	element->SetAttribute( "direction", m_direction);
+
+	element->SetAttribute( "centre_drill_size", Ttc(m_size.c_str()));
 }
 
 void CToolParams::ReadParametersFromXMLElement(TiXmlElement* pElem)
@@ -1068,6 +1143,8 @@ void CToolParams::ReadParametersFromXMLElement(TiXmlElement* pElem)
 	}
 	if (pElem->Attribute("direction")) pElem->Attribute("direction", &m_direction);
 	if (pElem->Attribute("pitch")) pElem->Attribute("pitch", &m_pitch);
+
+	if (pElem->Attribute("centre_drill_size")) m_size.assign(Ctt(pElem->Attribute( "centre_drill_size" )));
 }
 
 CTool::~CTool()
@@ -1428,9 +1505,22 @@ std::vector< std::pair< int, wxString > > CTool::FindAllTools()
 
 	if (floor(_value) > 0)
 	{
-		result << floor(_value) << _T(" ");
+		result << floor(_value);
 		_value -= floor(_value);
 	} // End if - then
+
+	double fraction = 0.0;
+	if ( ((_value > fraction) && ((_value - fraction) < near_enough)) ||
+	     ((_value < fraction) && ((fraction - _value) < near_enough)) ||
+	     (_value == fraction) )
+	{
+		return(result);
+	} // End if - then
+
+	if (result.length() > 0)
+	{
+	    result << _T(" ");
+	}
 
 	// We only want even numbers between 2 and 64 for the denominator.  The others just look 'wierd'.
 	for (int denominator = 2; denominator <= max_denominator; denominator *= 2)
@@ -1462,20 +1552,46 @@ std::vector< std::pair< int, wxString > > CTool::FindAllTools()
  */
 wxString CTool::GenerateMeaningfulName() const
 {
-#ifdef UNICODE
-	std::wostringstream l_ossName;
-#else
-    std::ostringstream l_ossName;
-#endif
+	wxString name;
 
-	if (	(m_params.m_type != CToolParams::eTurningTool) &&
+	if (m_params.m_type == CToolParams::eCentreDrill)
+	{
+		centre_drill_t *pCentreDrill = this->CentreDrillDefinition(m_params.m_size);
+		if ((pCentreDrill != NULL) && (pCentreDrill->size != CToolParams::ManuallyDefined))
+		{
+			name << _("Size ") << m_params.m_size << _T(" ");
+		}
+
+		wxString fraction = FractionalRepresentation(m_params.m_diameter / 25.4);
+		if (fraction.length() > 0)
+		{
+			name << _T("(") << fraction.c_str() << _T("\"=");
+		}
+		else
+		{
+			name << _T("(");
+		}
+
+		wxString mm;
+		mm.Printf(_T("%.2f"), m_params.m_diameter);
+		name << mm << _("mm) ");
+	}
+
+	if ((m_params.m_type != CToolParams::eTurningTool) &&
 		(m_params.m_type != CToolParams::eTouchProbe) &&
-		(m_params.m_type != CToolParams::eToolLengthSwitch))
+		(m_params.m_type != CToolParams::eToolLengthSwitch) &&
+		(m_params.m_type != CToolParams::eCentreDrill))
 	{
 		if (PROGRAM->m_units == 1)
 		{
 			// We're using metric.  Leave the diameter as a floating point number.  It just looks more natural.
-			l_ossName << m_params.m_diameter / PROGRAM->m_units << " mm ";
+			name << m_params.m_diameter / PROGRAM->m_units << _T(" mm ");
+
+			wxString fraction = FractionalRepresentation(m_params.m_diameter / 25.4);
+			if (fraction.length() > 0)
+			{
+				name << _T("(") << fraction.c_str() << _T("\") ");
+			}
 		} // End if - then
 		else
 		{
@@ -1485,25 +1601,25 @@ wxString CTool::GenerateMeaningfulName() const
 
 			if (fraction.Len() > 0)
 			{
-                l_ossName << fraction.c_str() << " inch ";
+                name << fraction.c_str() << _T(" inch ");
 			}
 			else
 			{
 			    if (guage.Len() > 0)
 			    {
-                    l_ossName << guage.c_str() << " ";
+                    name << guage.c_str() << _T(" ");
 
                     if (TOOLS)
                     {
                         if (TOOLS->m_title_format == CTools::eIncludeGuageAndSize)
                         {
-                            l_ossName << "(" << m_params.m_diameter / PROGRAM->m_units << " inch) ";
+                            name << _T("(") << m_params.m_diameter / PROGRAM->m_units << _T(" inch) ");
                         }
                     }
 			    }
 			    else
 			    {
-			        l_ossName << m_params.m_diameter / PROGRAM->m_units << " inch ";
+			        name << m_params.m_diameter / PROGRAM->m_units << _T(" inch ");
 			    }
 			}
 		} // End if - else
@@ -1513,10 +1629,10 @@ wxString CTool::GenerateMeaningfulName() const
 	{
 		switch (m_params.m_material)
 		{
-			case CToolParams::eHighSpeedSteel: l_ossName << "HSS ";
+			case CToolParams::eHighSpeedSteel: name << _("HSS ");
 								  break;
 
-			case CToolParams::eCarbide:	l_ossName << (_("Carbide "));
+			case CToolParams::eCarbide:	name << (_("Carbide "));
 								break;
 		} // End switch
 	} // End if - then
@@ -1525,11 +1641,11 @@ wxString CTool::GenerateMeaningfulName() const
 	{
 		switch (m_params.m_extrusion_material)
 		{
-			case CToolParams::eABS: l_ossName << "ABS ";
+			case CToolParams::eABS: name << _("ABS ");
 								break;
-			case CToolParams::ePLA:	l_ossName << (_("PLA "));
+			case CToolParams::ePLA:	name << (_("PLA "));
 								break;
-			case CToolParams::eHDPE:	l_ossName << (_("HDPE "));
+			case CToolParams::eHDPE:	name << (_("HDPE "));
 								break;
 		} // End switch
 	} // End if - then
@@ -1538,98 +1654,98 @@ wxString CTool::GenerateMeaningfulName() const
 
 	switch (m_params.m_type)
 	{
-		case CToolParams::eDrill:	l_ossName << (_("Drill Bit"));
+		case CToolParams::eDrill:	name << (_("Drill Bit"));
 							break;
 
-		case CToolParams::eCentreDrill:	l_ossName << (_("Centre Drill Bit"));
+		case CToolParams::eCentreDrill:	name << (_("Centre Drill Bit"));
 							break;
 
-                case CToolParams::eEndmill:	l_ossName << (_("End Mill"));
-							break;
+            case CToolParams::eEndmill:	name << (_("End Mill"));
+						break;
 
-                case CToolParams::eSlotCutter:	l_ossName << (_("Slot Cutter"));
-							break;
+            case CToolParams::eSlotCutter:	name << (_("Slot Cutter"));
+						break;
 
-                case CToolParams::eBallEndMill:	l_ossName << (_("Ball End Mill"));
-							break;
+            case CToolParams::eBallEndMill:	name << (_("Ball End Mill"));
+						break;
 
-                case CToolParams::eChamfer:	l_ossName.str(_T(""));	// Remove all that we've already prepared.
-							l_ossName << m_params.m_cutting_edge_angle << (_T(" degreee "));
-                					l_ossName << (_("Chamfering Bit"));
-							break;
+            case CToolParams::eChamfer:	name.clear();	// Remove all that we've already prepared.
+						name << m_params.m_cutting_edge_angle << (_T(" degreee "));
+            					name << (_("Chamfering Bit"));
+						break;
 
-                case CToolParams::eTurningTool:	l_ossName << (_("Turning Tool"));
-							break;
+            case CToolParams::eTurningTool:	name << (_("Turning Tool"));
+						break;
 
-                case CToolParams::eTouchProbe:	l_ossName << (_("Touch Probe"));
-							break;
+            case CToolParams::eTouchProbe:	name << (_("Touch Probe"));
+						break;
 
-                case CToolParams::eExtrusion:	l_ossName << (_("Extrusion"));
-							break;
+            case CToolParams::eExtrusion:	name << (_("Extrusion"));
+						break;
 
-                case CToolParams::eToolLengthSwitch:	l_ossName << (_("Tool Length Switch"));
-							break;
+            case CToolParams::eToolLengthSwitch:	name << (_("Tool Length Switch"));
+						break;
 
-                case CToolParams::eTapTool:
+            case CToolParams::eTapTool:
+            {
+                // See if we can find a name for it in the standard TAP sizes tables.
+                bool found = false;
+
+                for (::size_t i=0; ((metric_tap_sizes[i].diameter > 0.0) && (! found)); i++)
                 {
-                    // See if we can find a name for it in the standard TAP sizes tables.
-                    bool found = false;
-
-                    for (::size_t i=0; ((metric_tap_sizes[i].diameter > 0.0) && (! found)); i++)
-                    {
-                        if ((m_params.m_diameter == metric_tap_sizes[i].diameter) &&
-                            (m_params.m_pitch == metric_tap_sizes[i].pitch))
-                            {
-                                l_ossName.str(_T(""));  // Replace what came before.
-                                wxString description = metric_tap_sizes[i].description;
-                                description.Replace(_T("  "),_T(" "),true);
-                                l_ossName << description.utf8_str();
-                                found = true;
-                            }
-                    }
-
-                    for (::size_t i=0; ((unified_thread_standard_tap_sizes[i].diameter > 0.0) && (! found)); i++)
-                    {
-                        if ((m_params.m_diameter == unified_thread_standard_tap_sizes[i].diameter) &&
-                            (m_params.m_pitch == unified_thread_standard_tap_sizes[i].pitch))
-                            {
-                                l_ossName.str(_T(""));  // Replace what came before.
-                                wxString description = unified_thread_standard_tap_sizes[i].description;
-                                description.Replace(_T("  "),_T(" "),true);
-                                l_ossName << description.utf8_str();
-                                found = true;
-                            }
-                    }
-
-                    for (::size_t i=0; ((british_standard_whitworth_tap_sizes[i].diameter > 0.0) && (! found)); i++)
-                    {
-                        if ((m_params.m_diameter == british_standard_whitworth_tap_sizes[i].diameter) &&
-                            (m_params.m_pitch == british_standard_whitworth_tap_sizes[i].pitch))
-                            {
-                                l_ossName.str(_T(""));  // Replace what came before.
-                                wxString description = british_standard_whitworth_tap_sizes[i].description;
-                                description.Replace(_T("  "),_T(" "),true);
-                                l_ossName << description.utf8_str();
-                                found = true;
-                            }
-                    }
-
-                    l_ossName << (_(" Tap Tool"));
-                    if (m_params.m_direction == 1) {
-                        l_ossName << (_(", left hand"));
-                    }
+                    if ((m_params.m_diameter == metric_tap_sizes[i].diameter) &&
+                        (m_params.m_pitch == metric_tap_sizes[i].pitch))
+                        {
+                            name.clear();  // Replace what came before.
+                            wxString description = metric_tap_sizes[i].description;
+                            description.Replace(_T("  "),_T(" "),true);
+                            name << description.c_str();
+                            found = true;
+                        }
                 }
-		  break;
-                case CToolParams::eEngravingTool:	l_ossName.str(_T(""));	// Remove all that we've already prepared.
-							l_ossName << m_params.m_cutting_edge_angle << (_T(" degreee "));
-                					l_ossName << (_("Engraving Bit"));
-							break;
 
+                for (::size_t i=0; ((unified_thread_standard_tap_sizes[i].diameter > 0.0) && (! found)); i++)
+                {
+                    if ((m_params.m_diameter == unified_thread_standard_tap_sizes[i].diameter) &&
+                        (m_params.m_pitch == unified_thread_standard_tap_sizes[i].pitch))
+                        {
+                            name.clear();  // Replace what came before.
+                            wxString description = unified_thread_standard_tap_sizes[i].description;
+                            description.Replace(_T("  "),_T(" "),true);
+                            name << description.c_str();
+                            found = true;
+                        }
+                }
+
+                for (::size_t i=0; ((british_standard_whitworth_tap_sizes[i].diameter > 0.0) && (! found)); i++)
+                {
+                    if ((m_params.m_diameter == british_standard_whitworth_tap_sizes[i].diameter) &&
+                        (m_params.m_pitch == british_standard_whitworth_tap_sizes[i].pitch))
+                        {
+                            name.clear();  // Replace what came before.
+                            wxString description = british_standard_whitworth_tap_sizes[i].description;
+                            description.Replace(_T("  "),_T(" "),true);
+                            name << description.c_str();
+                            found = true;
+                        }
+                }
+
+                name << (_(" Tap Tool"));
+                if (m_params.m_direction == 1) {
+                    name << (_(", left hand"));
+                }
+            }
+		  break;
+
+          case CToolParams::eEngravingTool:	name.clear();	// Remove all that we've already prepared.
+				name << m_params.m_cutting_edge_angle << (_T(" degreee "));
+    					name << (_("Engraving Bit"));
+				break;
 
 		default:				break;
 	} // End switch
 
-	return( l_ossName.str().c_str() );
+	return( name );
 } // End GenerateMeaningfulName() method
 
 
@@ -1648,13 +1764,9 @@ wxString CTool::ResetTitle()
 		m_title = GenerateMeaningfulName();
 		heeksCAD->Changed();
 
-#ifdef UNICODE
-		std::wostringstream l_ossChange;
-#else
-		std::ostringstream l_ossChange;
-#endif
-		l_ossChange << "Changing name to " << m_title.c_str() << "\n";
-		return( l_ossChange.str().c_str() );
+		wxString change;
+		change << _("Changing name to ") << m_title << _T("\n");
+		return( change );
 	} // End if - then
 
 	// Nothing changed, nothing to report
@@ -1743,29 +1855,48 @@ TopoDS_Shape CTool::GetShape() const
 		case CToolParams::eCentreDrill:
 		{
 			// First a cylinder to represent the shaft.
+			double body_diameter = diameter * 5.0;	// Default.
+			centre_drill_t *pCentreDrill = CentreDrillDefinition(m_params.m_size);
+
+			if (pCentreDrill != NULL)
+			{
+				body_diameter = pCentreDrill->body_diameter;
+				tool_length_offset = pCentreDrill->overall_length;
+				cutting_edge_height = pCentreDrill->drill_length;
+			}
+
 			double tool_tip_length = (diameter / 2) * tan( degrees_to_radians(90.0 - m_params.m_cutting_edge_angle));
-			double non_cutting_shaft_length = tool_length_offset - tool_tip_length - cutting_edge_height;
+			double second_cone_height = ((body_diameter / 2.0) - (diameter / 2.0)) * tan( degrees_to_radians(90.0 - 30));
+			double body_length = tool_length_offset - (2.0 * tool_tip_length) - (2.0 * cutting_edge_height) - (2.0 * second_cone_height);
 
-			gp_Pnt shaft_start_location( tool_tip_location );
-			shaft_start_location.SetZ( tool_tip_location.Z() + tool_tip_length + cutting_edge_height );
-			gp_Ax2 shaft_position_and_orientation( shaft_start_location, orientation );
-			BRepPrimAPI_MakeCylinder shaft( shaft_position_and_orientation, (diameter / 2) * 2.0, non_cutting_shaft_length );
+			gp_Pnt location(tool_tip_location);
+			location.SetZ( location.Z() + tool_tip_length );
+			BRepPrimAPI_MakeCone bottom_tool_tip( gp_Ax2( location, gp_Dir(0,0,-1) ), diameter/2, m_params.m_flat_radius, tool_tip_length);
 
-			gp_Pnt cutting_shaft_start_location( tool_tip_location );
-			cutting_shaft_start_location.SetZ( tool_tip_location.Z() + tool_tip_length );
-			gp_Ax2 cutting_shaft_position_and_orientation( cutting_shaft_start_location, orientation );
-			BRepPrimAPI_MakeCylinder cutting_shaft( cutting_shaft_position_and_orientation, diameter / 2, cutting_edge_height );
+			BRepPrimAPI_MakeCylinder bottom_cutting_shaft( gp_Ax2( location, gp_Dir(0,0,+1) ), diameter / 2, cutting_edge_height );
+			TopoDS_Shape tool_shape = BRepAlgoAPI_Fuse(bottom_tool_tip.Shape() , bottom_cutting_shaft.Shape() );
 
-			// And a cone for the tip.
-			gp_Ax2 tip_position_and_orientation( cutting_shaft_start_location, gp_Dir(0,0,-1) );
-			BRepPrimAPI_MakeCone tool_tip( tip_position_and_orientation,
-							diameter/2,
-							m_params.m_flat_radius,
-							tool_tip_length);
+			location.SetZ( location.Z() + cutting_edge_height );
+			BRepPrimAPI_MakeCone bottom_shaft_cone( gp_Ax2( location, gp_Dir(0,0,+1) ), diameter/2, body_diameter/2.0, second_cone_height);
+			tool_shape = BRepAlgoAPI_Fuse(tool_shape, bottom_shaft_cone.Shape() );
 
-			TopoDS_Shape shafts = BRepAlgoAPI_Fuse(shaft.Shape() , cutting_shaft.Shape() );
-			TopoDS_Shape tool_shape = BRepAlgoAPI_Fuse(shafts , tool_tip.Shape() );
-			return tool_shape;
+			location.SetZ( location.Z() + second_cone_height );
+			BRepPrimAPI_MakeCylinder body_shaft( gp_Ax2( location, gp_Dir(0,0,+1) ), body_diameter / 2, body_length );
+			tool_shape = BRepAlgoAPI_Fuse(tool_shape, body_shaft.Shape() );
+
+			location.SetZ( location.Z() + body_length );
+			BRepPrimAPI_MakeCone top_shaft_cone( gp_Ax2( location, gp_Dir(0,0,+1) ), body_diameter/2.0, diameter/2, second_cone_height);
+			tool_shape = BRepAlgoAPI_Fuse(tool_shape, top_shaft_cone.Shape() );
+
+			location.SetZ( location.Z() + second_cone_height );
+			BRepPrimAPI_MakeCylinder top_cutting_shaft( gp_Ax2( location, gp_Dir(0,0,+1) ), diameter / 2, cutting_edge_height );
+			tool_shape = BRepAlgoAPI_Fuse(tool_shape , top_cutting_shaft.Shape() );
+
+			location.SetZ( location.Z() + cutting_edge_height );
+			BRepPrimAPI_MakeCone top_tool_tip( gp_Ax2( location, gp_Dir(0,0,+1) ), diameter/2, m_params.m_flat_radius, tool_tip_length);
+			tool_shape = BRepAlgoAPI_Fuse(tool_shape , top_tool_tip.Shape() );
+
+			return( tool_shape );
 		}
 
 		case CToolParams::eDrill:
@@ -2004,13 +2135,21 @@ TopoDS_Shape CTool::GetShape() const
    // to construct a shape.
    catch (Standard_ConstructionError)
    {
-	// printf("Construction error thrown while generating tool shape\n");
-	throw;	// Re-throw the exception.
+	   // If we fail to create the solid then it's probably because the parameters of the geometry
+	   // don't make sense.  eg: a negative length.  If we return a small sphere then we avoid
+	   // the infinite loop that is created by the NULL shape pointer.
+
+	    BRepPrimAPI_MakeSphere ball( gp_Pnt(0.0, 0.0, 0.0), 1.0 );
+		return ball.Shape();
    } // End catch
    catch (Standard_DomainError)
    {
-	// printf("Domain error thrown while generating tool shape\n");
-	throw;	// Re-throw the exception.
+	   // If we fail to create the solid then it's probably because the parameters of the geometry
+	   // don't make sense.  eg: a negative length.  If we return a small sphere then we avoid
+	   // the infinite loop that is created by the NULL shape pointer.
+
+	    BRepPrimAPI_MakeSphere ball( gp_Pnt(0.0, 0.0, 0.0), 1.0 );
+		return ball.Shape();
    } // End catch
 } // End GetShape() method
 
@@ -2148,32 +2287,35 @@ double CTool::CuttingRadius( const bool express_in_drawing_units /* = false */, 
 		case CToolParams::eChamfer:
 		case CToolParams::eEngravingTool:
 			{
-			    if (depth < 0.0)
-			    {
-                    // We want to decide where, along the cutting edge, we want
-                    // to machine.  Let's start with 1/3 of the way from the inside
-                    // cutting edge so that, as we plunge it into the material, it
-                    // cuts towards the outside.  We don't want to run right on
-                    // the edge because we don't want to break the top off.
-
-                    // one third from the centre-most point.
-                    double proportion_near_centre = 0.3;
-                    radius = (((m_params.m_diameter/2) - m_params.m_flat_radius) * proportion_near_centre) + m_params.m_flat_radius;
-			    }
-			    else
-			    {
-			        radius = m_params.m_flat_radius + (depth * tan((m_params.m_cutting_edge_angle / 360.0 * 2 * PI)));
-			        if (radius > (m_params.m_diameter / 2.0))
-			        {
-			            // The angle and depth would have us cutting larger than our largest diameter.
-			            radius = (m_params.m_diameter / 2.0);
-			        }
-			    }
+		        radius = m_params.m_flat_radius + (depth * tan((m_params.m_cutting_edge_angle / 360.0 * 2 * PI)));
+		        if (radius > (m_params.m_diameter / 2.0))
+		        {
+		            // The angle and depth would have us cutting larger than our largest diameter.
+		            radius = (m_params.m_diameter / 2.0);
+		        }
+		        if (radius <= 0.0)
+		        {
+		            radius = m_params.m_diameter / 2.0;
+		        }
 			}
 			break;
 
+        case CToolParams::eCentreDrill:
+            {
+                centre_drill_t *pCentreDrill = CentreDrillDefinition(m_params.m_size);
+
+                if (pCentreDrill != NULL)
+                {
+                    radius = pCentreDrill->drill_diameter / 2.0;
+                }
+                else
+                {
+                    radius = m_params.m_diameter / 2.0;
+                }
+            }
+			break;
+
 		case CToolParams::eDrill:
-		case CToolParams::eCentreDrill:
 		case CToolParams::eEndmill:
 		case CToolParams::eSlotCutter:
 		case CToolParams::eBallEndMill:
@@ -2243,6 +2385,32 @@ public:
 
 static Tool_ImportProbeData import_probe_calibration_data;
 
+class Tool_AddToolSolid: public Tool
+{
+
+CTool *m_pThis;
+
+public:
+	Tool_AddToolSolid() { m_pThis = NULL; }
+
+	// Tool's virtual functions
+	const wxChar* GetTitle(){return _("Add the tool solid to the model");}
+
+	void Run()
+	{
+	    TopoDS_Shape tool_shape = m_pThis->GetShape();
+        HeeksObj *solid = heeksCAD->NewSolid( *((TopoDS_Solid *) &tool_shape), NULL, HeeksColor(234, 123, 89) );
+        solid->OnEditString( m_pThis->GenerateMeaningfulName() );
+        heeksCAD->Add(solid, NULL);
+	}
+	wxString BitmapPath(){ return _T("import");}
+	void Set( CTool *pThis ) { m_pThis = pThis; }
+};
+
+static Tool_AddToolSolid add_tool_solid;
+
+
+
 void CTool::GetTools(std::list<Tool*>* t_list, const wxPoint* p)
 {
 	if (m_params.m_type == CToolParams::eTouchProbe)
@@ -2251,6 +2419,9 @@ void CTool::GetTools(std::list<Tool*>* t_list, const wxPoint* p)
 
 		t_list->push_back( &import_probe_calibration_data );
 	}
+
+    add_tool_solid.Set( this );
+	t_list->push_back( &add_tool_solid );
 }
 
 
@@ -2259,7 +2430,9 @@ void CTool::ImportProbeCalibrationData( const wxString & probed_points_xml_file_
 	TiXmlDocument* xml = heeksCAD->NewXMLDocument();
 	if (! xml->LoadFile( probed_points_xml_file_name.utf8_str()) )
 	{
-		printf("Failed to load XML file '%s'\n", Ttc(probed_points_xml_file_name.c_str()) );
+		wxString text;
+		text << _("Failed to load XML file ") << probed_points_xml_file_name;
+		wxMessageBox(text);
 	} // End if - then
 	else
 	{
@@ -2450,11 +2623,7 @@ static bool OnEdit(HeeksObj* object)
 
 void CTool::GetOnEdit(bool(**callback)(HeeksObj*))
 {
-#ifndef STABLE_OPS_ONLY
 	*callback = OnEdit;
-#else
-	*callback = NULL;
-#endif
 }
 
 
@@ -2506,4 +2675,25 @@ std::list<wxString> CTool::DesignRulesAdjustment(const bool apply_changes)
 
 } // End DesignRulesAdjustment() method
 
+
+CTool::centre_drill_t *CTool::CentreDrillDefinition( const wxString size ) const
+{
+	for (::size_t i=0; i<sizeof(centre_drill_sizes)/sizeof(centre_drill_sizes[0]); i++)
+	{
+		if (centre_drill_sizes[i].size == size)
+		{
+			if (size == CToolParams::ManuallyDefined)
+			{
+				centre_drill_sizes[i].body_diameter = centre_drill_sizes[i].drill_diameter * 10.0;
+				centre_drill_sizes[i].drill_diameter = m_params.m_diameter;
+				centre_drill_sizes[i].drill_length = m_params.m_cutting_edge_height;
+				centre_drill_sizes[i].overall_length = m_params.m_tool_length_offset;
+			}
+
+			return(&(centre_drill_sizes[i]));
+		}
+	}
+
+	return(NULL);
+}
 

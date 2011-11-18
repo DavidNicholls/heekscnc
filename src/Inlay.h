@@ -5,8 +5,6 @@
  * details.
  */
 
-#ifndef STABLE_OPS_ONLY
-
 #ifndef INLAY_CYCLE_CLASS_DEFINITION
 #define INLAY_CYCLE_CLASS_DEFINITION
 
@@ -29,7 +27,7 @@ class CInlayParams{
 public:
     typedef enum {
 		eFemale,		// No mirroring and take depths from DepthOp settings.
-		eMale,			// Reverse depth values (bottom up measurement)
+		eMale,			// Reverse depth values (bottom up measurement) and mirror the sketches.
 		eBoth
 	} eInlayPass_t;
 
@@ -46,6 +44,7 @@ public:
 		m_pass = eBoth;
 		m_female_before_male_fixtures = true;
 		m_min_cornering_angle = 30.0;   // degrees.
+		m_cleanout_step_over = 0.3;   // for the cleanout of the gap between the chamfering bit and endmill areas (in the corners)
 	}
 
 	void set_initial_values();
@@ -62,28 +61,45 @@ public:
 	eAxis_t         m_mirror_axis;
 	bool			m_female_before_male_fixtures;
 	double          m_min_cornering_angle;
+	double          m_cleanout_step_over;
 
 	bool operator== ( const CInlayParams & rhs ) const;
 	bool operator!= ( const CInlayParams & rhs ) const { return(! (*this == rhs)); }
 };
 
 /**
-	The CInlay class is suspiciously similar to the CProfile class.  The main difference is that the NC path
-	is generated from this class itself (in C++) rather than by using the kurve Pythin library.  It also
-	has depth values that are RELATIVE to the sketch coordinate rather than assuming a horozontal sketch.  The idea
-	of this is to allow for a rotation of the XZ or YZ planes.
+	The Inlay operation generates the tool paths so that a combination of chamfering bits and
+	normal endmills can be used to machine away two mirrored patterns, presumably out of two
+	different coloured woods.  These two mirrored patterns can then be glued together, one fitting
+	into the other.  When the glue is dry, one half is, almost, machined away leaving the
+	other half with its valleys filled in with the contrasting wood.
 
-	Finally, it is hoped that the CInlay class will support 'bridging tabs' during a cutout so that the
-	workpiece is held in place until the very last moment.
+	i.e. draw a shape.  machine a valley inside that shape on one workpiece.  machine a mountain
+	around a mirrored copy of that shape.  fit the two workpieces into each other.   machine away
+	the backing that remains from the male half leaving the female half (the valleys) filled with
+	the wood from the male half (the mountains).
 
-	This class uses the offet functionality for TopoDS_Wire objects to handle the path generation. This is DIFFERENT
-	to that used by the Profile class in that it doesn't handle the case where the user wants to machine inside a
-	sketch but where the diamter of the tool makes that impossible.  With the Profile class, this would be
-	possible for a converging sketch shape such that the tool would penetrate as far as it could without gouging
-	the sketch but would not cut out the whole sketch shape.  This class allows the FAILURE to occur rather than
-	allowing half the sketch to be machined.  At the initial time of writing, I consider this to be a GOOD thing.
-	I wish to do some 'inlay' work and I want to know whether the tools will COMPLETELY cut out the sketch
-	shapes.  Perhaps we will add a flag to enable/disable this behaviour later.
+	The other trick is to use a pointed chamfering bit to machine the walls at the edges of both the
+	valleys and the mountains.  By using the same bit for both halves, the two patterns should fit
+	into each other correctly.  Indeed, since it's a chamfering bit, the pressure applied when
+	gluing them together should ensure a tight fit between the edges of the two halves.  The other
+	feature of using a chamfering bit is to 'sharpen up' the concave corners of the shape by lifting
+	the chamfering bit up into the corners.  i.e. as the bit is lifted, its effective diameter
+	approaches zero.  This works around the need to have the shape modified to remove corners
+	whose radius is less than the clearance tool's radius.
+
+	This class supports the use of two private fixtures so that both the female and male halves of the
+	machining can be done on different fixtures at the same time.  i.e. to minimize tool changes.  The
+	idea is to fix a dark coloured wood as G54 and a light coloured wood as G55 and machine both halves
+	of the design in the same machining session.
+
+	NOTE: There currently exists a flaw in the logic.  The radius of the clearance bit (i.e. the endmill)
+	means that it cannot fit tightly into concave corners of the sketch.  The chamfering bit, on the
+	other hand can get right into the corners.  There is currently no mechanism to determine what wood
+	remains unmachined by the two operations.  i.e. near the concave corners, the chamfering bit does the
+	very corners and the clearance bit does most of the model but there is a small area between the
+	two that is not machined.  One day it would be nice to figure out how to calculate these areas and
+	have the chamfering bit machine them but I don't know how to do that yet.
  */
 
 class CInlay: public CDepthOp {
@@ -306,6 +322,13 @@ public:
 	Python FormValleyPockets( Valleys_t valleys, CMachineState *pMachineState  );
 	Python FormMountainWalls( Valleys_t mountains, CMachineState *pMachineState  );
 	Python FormMountainPockets( Valleys_t mountains, CMachineState *pMachineState, const bool only_above_mountains  );
+	Python FormValleyCrevices( Valleys_t valleys, CMachineState *pMachineState  );
+	Python FormMountainCrevices( Valleys_t valleys, CMachineState *pMachineState  );
+	bool CutterBoundary( TopoDS_Wire original, const double cutter_radius, TopoDS_Wire &result  ) const;
+	std::vector<TopoDS_Wire> FaceMinusFace( const TopoDS_Face lhs, const TopoDS_Face rhs, const double z_height ) const;
+	void AddShapeToBoundingBox( TopoDS_Shape shape, CBox & box ) const;
+	CBox GetBoundingBoxForMountains(Valleys_t valleys, CMachineState *pMachineState);
+	bool DistanceBetweenWires( const TopoDS_Wire lhs, const TopoDS_Wire rhs, double *pResult ) const;
 
 	// Overloaded from COp class.
 	virtual unsigned int MaxNumberOfPrivateFixtures() const { return(2); }
@@ -326,4 +349,3 @@ public:
 #endif // INLAY_CYCLE_CLASS_DEFINITION
 
 
-#endif //#ifndef STABLE_OPS_ONLY

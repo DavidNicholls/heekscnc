@@ -44,6 +44,7 @@ extern CHeeksCADInterface* heeksCAD;
 static void on_set_distance(double value, HeeksObj* object)
 {
 	((CProbing*)object)->m_distance = value;
+	((CProbing*)object)->WriteToConfig();
 	((CProbing*)object)->GenerateMeaningfullName();
 	heeksCAD->Changed();	// Force a re-draw from glCommands()
 }
@@ -51,6 +52,7 @@ static void on_set_distance(double value, HeeksObj* object)
 static void on_set_depth(double value, HeeksObj* object)
 {
 	((CProbing*)object)->m_depth = value;
+	((CProbing*)object)->WriteToConfig();
 	((CProbing*)object)->GenerateMeaningfullName();
 	heeksCAD->Changed();	// Force a re-draw from glCommands()
 }
@@ -913,6 +915,7 @@ static void on_set_number_of_points(int zero_based_offset, HeeksObj* object)
 {
 	if (zero_based_offset == 0) ((CProbe_Centre *)object)->m_number_of_points = 2;
 	if (zero_based_offset == 1) ((CProbe_Centre *)object)->m_number_of_points = 4;
+	((CProbe_Centre*)object)->WriteToConfig();
 	((CProbe_Centre*)object)->GenerateMeaningfullName();
 	heeksCAD->Changed();	// Force a re-draw from glCommands()
 }
@@ -920,6 +923,7 @@ static void on_set_number_of_points(int zero_based_offset, HeeksObj* object)
 static void on_set_direction(int zero_based_choice, HeeksObj* object)
 {
 	((CProbe_Centre*)object)->m_direction = CProbing::eProbeDirection_t(zero_based_choice);
+	((CProbe_Centre*)object)->WriteToConfig();
 	((CProbe_Centre*)object)->GenerateMeaningfullName();
 	heeksCAD->Changed();	// Force a re-draw from glCommands()
 }
@@ -927,6 +931,7 @@ static void on_set_direction(int zero_based_choice, HeeksObj* object)
 static void on_set_alignment(int zero_based_choice, HeeksObj* object)
 {
 	((CProbe_Centre*)object)->m_alignment = CProbing::eAlignment_t(zero_based_choice);
+	((CProbe_Centre*)object)->WriteToConfig();
 	((CProbe_Centre*)object)->GenerateMeaningfullName();
 	heeksCAD->Changed();	// Force a re-draw from glCommands()
 }
@@ -987,6 +992,7 @@ void CProbe_Centre::GetProperties(std::list<Property *> *list)
 static void on_set_num_x_points(int value, HeeksObj* object)
 {
 	((CProbe_Grid*)object)->m_num_x_points = value;
+	((CProbe_Grid*)object)->WriteToConfig();
 	((CProbe_Grid*)object)->GenerateMeaningfullName();
 	heeksCAD->Changed();
 }
@@ -994,6 +1000,7 @@ static void on_set_num_x_points(int value, HeeksObj* object)
 static void on_set_num_y_points(int value, HeeksObj* object)
 {
 	((CProbe_Grid*)object)->m_num_y_points = value;
+	((CProbe_Grid*)object)->WriteToConfig();
 	((CProbe_Grid*)object)->GenerateMeaningfullName();
 	heeksCAD->Changed();
 }
@@ -1001,6 +1008,7 @@ static void on_set_num_y_points(int value, HeeksObj* object)
 static void on_set_reason(int value, HeeksObj* object)
 {
 	((CProbe_Grid*)object)->m_for_fixture_measurement = (value != 0);
+	((CProbe_Grid*)object)->WriteToConfig();
 	((CProbe_Grid*)object)->GenerateMeaningfullName();
 	heeksCAD->Changed();
 }
@@ -1026,6 +1034,7 @@ void CProbe_Grid::GetProperties(std::list<Property *> *list)
 static void on_set_number_of_edges(int zero_based_offset, HeeksObj* object)
 {
 	((CProbe_Edge*)object)->m_number_of_edges = zero_based_offset + 1;
+	((CProbe_Edge*)object)->WriteToConfig();
 	((CProbe_Edge*)object)->GenerateMeaningfullName();
 	heeksCAD->Changed();
 }
@@ -1033,6 +1042,7 @@ static void on_set_number_of_edges(int zero_based_offset, HeeksObj* object)
 static void on_set_retract(double value, HeeksObj* object)
 {
 	((CProbe_Edge*)object)->m_retract = value;
+	((CProbe_Edge*)object)->WriteToConfig();
 	((CProbe_Edge*)object)->GenerateMeaningfullName();
 	heeksCAD->Changed();	// Force a re-draw from glCommands()
 }
@@ -1040,6 +1050,7 @@ static void on_set_retract(double value, HeeksObj* object)
 static void on_set_edge(int zero_based_choice, HeeksObj* object)
 {
 	((CProbe_Edge*)object)->m_edge = CProbing::eEdges_t(zero_based_choice);
+	((CProbe_Edge*)object)->WriteToConfig();
 	((CProbe_Edge*)object)->GenerateMeaningfullName();
 	heeksCAD->Changed();	// Force a re-draw from glCommands()
 }
@@ -1048,6 +1059,7 @@ static void on_set_edge(int zero_based_choice, HeeksObj* object)
 static void on_set_corner(int zero_based_choice, HeeksObj* object)
 {
 	((CProbe_Edge*)object)->m_corner = CProbing::eCorners_t(zero_based_choice);
+	((CProbe_Edge*)object)->WriteToConfig();
 	((CProbe_Edge*)object)->GenerateMeaningfullName();
 	heeksCAD->Changed();	// Force a re-draw from glCommands()
 }
@@ -1055,6 +1067,7 @@ static void on_set_corner(int zero_based_choice, HeeksObj* object)
 static void on_set_check_levels(int zero_based_choice, HeeksObj* object)
 {
 	((CProbe_Edge*)object)->m_check_levels = zero_based_choice;
+	((CProbe_Edge*)object)->WriteToConfig();
 	((CProbe_Edge*)object)->GenerateMeaningfullName();
 	heeksCAD->Changed();	// Force a re-draw from glCommands()
 }
@@ -1062,11 +1075,13 @@ static void on_set_check_levels(int zero_based_choice, HeeksObj* object)
 static void on_set_corner_coordinate(const double *vt, HeeksObj* object)
 {
 	((CProbe_Edge *)object)->m_corner_coordinate = CNCPoint(vt);
+	((CProbe_Edge*)object)->WriteToConfig();
 }
 
 static void on_set_final_coordinate(const double *vt, HeeksObj* object)
 {
 	((CProbe_Edge *)object)->m_final_coordinate = CNCPoint(vt);
+	((CProbe_Edge*)object)->WriteToConfig();
 }
 
 void CProbe_Edge::GetProperties(std::list<Property *> *list)
@@ -1624,12 +1639,7 @@ public:
 
 		python << m_pThis->GeneratePythonPreamble();
 
-		CMachineState machine;
-#ifndef STABLE_OPS_ONLY
-		CFixture default_fixture(NULL, CFixture::G54, false, 0.0 );
-		machine.Fixture(default_fixture);
-#endif
-
+		CMachineState machine(&(theApp.m_program->m_machine), CFixture(NULL, CFixture::G54, false, 0.0 ));
 		python << m_pThis->AppendTextToProgram( &machine );
 
 		python << _T("program_end()\n");
@@ -1682,12 +1692,7 @@ public:
 
 		python << m_pThis->GeneratePythonPreamble();
 
-		CMachineState machine;
-#ifndef STABLE_OPS_ONLY
-		CFixture default_fixture(NULL, CFixture::G54, false, 0.0 );
-		machine.Fixture(default_fixture);
-#endif
-
+		CMachineState machine(&(theApp.m_program->m_machine), CFixture(NULL, CFixture::G54, false, 0.0 ));
 		python << m_pThis->AppendTextToProgram( &machine );
 
 		python << _T("program_end()\n");
@@ -1741,12 +1746,7 @@ public:
 
 		python << m_pThis->GeneratePythonPreamble();
 
-		CMachineState machine;
-#ifndef STABLE_OPS_ONLY
-		CFixture default_fixture(NULL, CFixture::G54, false, 0.0 );
-		machine.Fixture(default_fixture);
-#endif
-
+		CMachineState machine(&(theApp.m_program->m_machine), CFixture(NULL, CFixture::G54, false, 0.0 ));
 		python << m_pThis->AppendTextToProgram( &machine );
 
 		python << _T("program_end()\n");
@@ -2273,3 +2273,146 @@ void CProbe_Grid::OnChangeUnits(const double units)
 {
     GenerateMeaningfullName();
 }
+
+void CProbing::ReadFromConfig()
+{
+	CNCConfig config(ConfigScope());
+
+	config.Read(_T("Depth"), &m_depth, 10.0);
+	config.Read(_T("Distance"), &m_distance, 50.0);
+}
+
+void CProbing::WriteToConfig()
+{
+	CNCConfig config(ConfigScope());
+
+	config.Write(_T("Depth"), m_depth);
+	config.Write(_T("Distance"), m_distance);
+}
+
+void CProbe_Grid::ReadFromConfig()
+{
+	CNCConfig config(ConfigScope());
+
+	config.Read(_T("NumXPoints"), &m_num_x_points, 2);
+	config.Read(_T("NumYPoints"), &m_num_y_points, 2);
+	config.Read(_T("ForFixtureMeasurement"), &m_for_fixture_measurement, true);
+
+	CProbing::ReadFromConfig();
+}
+
+void CProbe_Grid::WriteToConfig()
+{
+	CNCConfig config(ConfigScope());
+
+	config.Write(_T("NumXPoints"), m_num_x_points);
+	config.Write(_T("NumYPoints"), m_num_y_points);
+	config.Write(_T("ForFixtureMeasurement"), m_for_fixture_measurement);
+
+	CProbing::WriteToConfig();
+}
+
+void CProbe_Centre::ReadFromConfig()
+{
+	CNCConfig config(ConfigScope());
+
+	config.Read(_T("Direction"), (int *) &m_direction, int(eOutside));
+	config.Read(_T("NumPoints"), &m_number_of_points, 2);
+	config.Read(_T("Alignment"), (int *) &m_alignment, int(eXAxis));
+
+	CProbing::ReadFromConfig();
+}
+
+void CProbe_Centre::WriteToConfig()
+{
+	CNCConfig config(ConfigScope());
+
+	config.Write(_T("Direction"), (int) m_direction);
+	config.Write(_T("NumPoints"), m_number_of_points);
+	config.Write(_T("Alignment"), (int) m_alignment);
+
+	CProbing::WriteToConfig();
+}
+
+void CProbe_Edge::ReadFromConfig()
+{
+	CNCConfig config(ConfigScope());
+
+	config.Read(_T("Retract"), &m_retract, 5.0);
+	config.Read(_T("NumEdges"), (int *) &m_number_of_edges, 2);
+	config.Read(_T("Edge"), (int *) &m_edge, int(eBottom));
+	config.Read(_T("Corner"), (int *) &m_corner, int(eBottomLeft));
+	config.Read(_T("CheckLevels"), &m_check_levels, 1);
+
+	{
+		double x,y,z;
+		config.Read(_T("CornerCoordinate_X"), &x, 0.0);
+		config.Read(_T("CornerCoordinate_Y"), &y, 0.0);
+		config.Read(_T("CornerCoordinate_Z"), &z, 0.0);
+		m_corner_coordinate = gp_Pnt( x,y,z );
+	}
+
+	{
+		double x,y,z;
+		config.Read(_T("FinalCoordinate_X"), &x, 0.0);
+		config.Read(_T("FinalCoordinate_Y"), &y, 0.0);
+		config.Read(_T("FinalCoordinate_Z"), &z, 0.0);
+		m_final_coordinate = gp_Pnt( x,y,z );
+	}
+
+	CProbing::ReadFromConfig();
+}
+
+void CProbe_Edge::WriteToConfig()
+{
+	CNCConfig config(ConfigScope());
+
+	config.Write(_T("Retract"), m_retract);
+	config.Write(_T("NumEdges"), (int) m_number_of_edges);
+	config.Write(_T("Edge"), (int) m_edge);
+	config.Write(_T("Corner"), (int) m_corner);
+	config.Write(_T("CheckLevels"), m_check_levels);
+
+	config.Write(_T("CornerCoordinate_X"), m_corner_coordinate.X());
+	config.Write(_T("CornerCoordinate_Y"), m_corner_coordinate.Y());
+	config.Write(_T("CornerCoordinate_Z"), m_corner_coordinate.Z());
+
+	config.Write(_T("FinalCoordinate_X"), m_final_coordinate.X());
+	config.Write(_T("FinalCoordinate_Y"), m_final_coordinate.Y());
+	config.Write(_T("FinalCoordinate_Z"), m_final_coordinate.Z());
+
+	CProbing::WriteToConfig();
+}
+
+
+/**
+	This method adjusts any parameters that don't make sense.  It should report a list
+	of changes in the list of strings.
+ */
+std::list<wxString> CProbing::DesignRulesAdjustment(const bool apply_changes)
+{
+	std::list<wxString> changes;
+
+	// Make some special checks if we're using a chamfering bit.
+	if (m_tool_number > 0)
+	{
+		CTool *pTool = (CTool *) CTool::Find( m_tool_number );
+		if (pTool != NULL)
+		{
+			if (pTool->m_params.m_type != CToolParams::eTouchProbe)
+			{
+				wxString change;
+				change << DesignRulesPreamble() << _("found with ") << pTool->m_params.m_type;
+				changes.push_back(change);
+			}
+		} // End if - then
+	} // End if - then
+
+	std::list<wxString> extra_changes = CSpeedOp::DesignRulesAdjustment(apply_changes);
+	std::copy( extra_changes.begin(), extra_changes.end(), std::inserter( changes, changes.end() ));
+
+	return(changes);
+
+} // End DesignRulesAdjustment() method
+
+

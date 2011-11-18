@@ -1,5 +1,4 @@
 
-#ifndef STABLE_OPS_ONLY
 #ifndef CHAMFER_CLASS_DEFINITION
 #define CHAMFER_CLASS_DEFINITION
 
@@ -156,10 +155,11 @@ public:
 	bool operator== ( const CChamfer & rhs ) const;
 	bool operator!= ( const CChamfer & rhs ) const { return(! (*this == rhs)); }
 	bool IsDifferent( HeeksObj *other) { return( *this != (*(CChamfer *)other) ); }
+
+	std::list<wxString> DesignRulesAdjustment(const bool apply_changes);
 };
 
 
 
 
 #endif // CHAMFER_CLASS_DEFINITION
-#endif

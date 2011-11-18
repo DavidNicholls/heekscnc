@@ -180,11 +180,7 @@ Python CTapping::AppendTextToProgram( CMachineState *pMachineState )
 	std::vector<CNCPoint> locations = CDrilling::FindAllLocations(this, pMachineState->Location(), m_params.m_sort_tapping_locations != 0, NULL);
 	for (std::vector<CNCPoint>::const_iterator l_itLocation = locations.begin(); l_itLocation != locations.end(); l_itLocation++)
 	{
-#ifdef STABLE_OPS_ONLY
-		gp_Pnt point( *l_itLocation );
-#else
 		gp_Pnt point = pMachineState->Fixture().Adjustment( *l_itLocation );
-#endif
 
 		python << _T("tap(")
 		       << _T("x=") << point.X()/theApp.m_program->m_units << _T(", ")
@@ -548,7 +544,9 @@ std::list<wxString> CTapping::DesignRulesAdjustment(const bool apply_changes)
 		{
 		    if (pTool->m_params.m_type != CToolParams::eTapTool)
 		    {
-		        changes.push_back(_("The tapping operation has not selected a tapping tool to use\n"));
+				wxString change;
+				change << DesignRulesPreamble() << _("The tapping operation has not selected a tapping tool to use\n");
+		        changes.push_back(change);
 		    }
 		    else
 		    {
@@ -559,24 +557,32 @@ std::list<wxString> CTapping::DesignRulesAdjustment(const bool apply_changes)
 		        {
 		            changes.push_back(*itChange);
 		        }
-			
+
 			// see wether tapping direction and spindle direction match
-			if (pTool->m_params.m_direction && (m_speed_op_params.m_spindle_speed > 0)) 
+			if (pTool->m_params.m_direction && (m_speed_op_params.m_spindle_speed > 0))
 			{
-			    changes.push_back(_("Left-hand tapping needs a counterclockwise spindle rotation (negative spindle_speed)\n"));
+				wxString change;
+				change << DesignRulesPreamble() << _("Left-hand tapping needs a counterclockwise spindle rotation (negative spindle_speed)\n");
+			    changes.push_back(change);
 			    if (apply_changes)
 			    {
-			        changes.push_back(_("Adjusting spindle rotation to counterclockwise.\n"));
+					wxString change;
+					change << DesignRulesPreamble() << _("Adjusting spindle rotation to counterclockwise.\n");
+			        changes.push_back(change);
 				m_speed_op_params.m_spindle_speed  = - m_speed_op_params.m_spindle_speed;
 			    } // End if - then
 			}
 			if (!pTool->m_params.m_direction && (m_speed_op_params.m_spindle_speed < 0) )
 			{
-			    changes.push_back(_("right-hand tapping needs clockwise spindle rotation (positive spindle_speed)\n"));
+				wxString change;
+				change << DesignRulesPreamble() << _("right-hand tapping needs clockwise spindle rotation (positive spindle_speed)\n");
+			    changes.push_back(change);
 			    if (apply_changes)
 			    {
-				changes.push_back(_("Adjusting spindle rotation to clockwise.\n"));
-				m_speed_op_params.m_spindle_speed  = - m_speed_op_params.m_spindle_speed;
+					wxString change;
+					change << DesignRulesPreamble() << _("Adjusting spindle rotation to clockwise.\n");
+					changes.push_back(change);
+					m_speed_op_params.m_spindle_speed  = - m_speed_op_params.m_spindle_speed;
 			    } // End if - then
 			}
 		    }
@@ -584,63 +590,6 @@ std::list<wxString> CTapping::DesignRulesAdjustment(const bool apply_changes)
 	}
 
 
-	// Make some special checks if we're using a chamfering bit.
-	if (m_tool_number > 0)
-	{
-		CTool *pTap = (CTool *) CTool::Find( m_tool_number );
-		if (pTap != NULL)
-		{
-			std::vector<CNCPoint> these_locations = CDrilling::FindAllLocations(this);
-
-			if (pTap->m_params.m_type == CToolParams::eTapTool)
-			{
-				// We need to make sure that the depth of the hole we're drilling is at least
-				// as deep as the depth of our tapping operation.
-
-				for (HeeksObj *obj = theApp.m_program->Operations()->GetFirstChild();
-					obj != NULL;
-					obj = theApp.m_program->Operations()->GetNextChild())
-				{
-					if (obj->GetType() == DrillingType)
-					{
-					    CDrilling *pDrilling = (CDrilling *) obj;
-
-						// Make sure we're looking at a hole taped with something
-						// more than a centre tap.
-						CToolParams::eToolType type = CTool::CutterType( pDrilling->m_tool_number );
-						if (	(type == CToolParams::eDrill) ||
-							(type == CToolParams::eEndmill) ||
-							(type == CToolParams::eSlotCutter) ||
-							(type == CToolParams::eBallEndMill))
-						{
-							// See if any of the other drilling locations line up
-							// with our tapping locations.  If so, we must be
-							// tapping a previously drilled hole.
-
-							std::vector<CNCPoint> previous_locations = CDrilling::FindAllLocations((CTapping *)obj);
-							std::vector<CNCPoint> common_locations;
-							std::set_intersection( previous_locations.begin(), previous_locations.end(),
-										these_locations.begin(), these_locations.end(),
-										std::inserter( common_locations, common_locations.begin() ));
-							if (common_locations.size() > 0)
-							{
-								// We're here.  We must be tapping a hole we've
-								// drilled previously.  Check the depths.
-
-								if (pDrilling->m_params.m_depth < m_params.m_depth)
-								{
-								    wxString change;
-								    change << _("ID ") << this->m_id << _(" The tapping operation's depth is greater than the previously drilled hole\n");
-								    changes.push_back(change);
-								}
-							} // End if - then
-
-						} // End if - then
-					} // End if - then
-				} // End for
-			} // End if - then
-		} // End if - then
-	} // End if - then
 
 	if (m_tool_number > 0)
 	{
@@ -652,33 +601,25 @@ std::list<wxString> CTapping::DesignRulesAdjustment(const bool apply_changes)
 
 			if (apply_changes)
 			{
-#ifdef UNICODE
-				std::wostringstream l_ossChange;
-#else
-				std::ostringstream l_ossChange;
-#endif
-
-				l_ossChange << _("Adjusting depth of tapping cycle") << " id='" << m_id << "' " << _("from") << " '"
-					<< m_params.m_depth / theApp.m_program->m_units << "' " << _("to") << " "
-					<< pTap->m_params.m_cutting_edge_height / theApp.m_program->m_units << "\n";
-				changes.push_back(l_ossChange.str().c_str());
+				wxString change;
+				change << DesignRulesPreamble() << _("Adjusting depth of tapping cycle from ")
+					<< m_params.m_depth / theApp.m_program->m_units << _(" to ")
+					<< pTap->m_params.m_cutting_edge_height / theApp.m_program->m_units;
+				changes.push_back(change);
 
 				m_params.m_depth = pTap->m_params.m_cutting_edge_height;
 			} // End if - then
 			else
 			{
-#ifdef UNICODE
-				std::wostringstream l_ossChange;
-#else
-				std::ostringstream l_ossChange;
-#endif
-
-				l_ossChange << _("WARNING") << ": " << _("Tapping") << " (id=" << m_id << ").  " << _("Can't tap hole") << " " << m_params.m_depth / theApp.m_program->m_units << " when the tapping bit's cutting length is only " << pTap->m_params.m_cutting_edge_height << " long\n";
-				changes.push_back(l_ossChange.str().c_str());
+				wxString change;
+				change << DesignRulesPreamble() << _("Can't tap hole ") << m_params.m_depth / theApp.m_program->m_units << _(" when the tapping bit's cutting length is only ") << pTap->m_params.m_cutting_edge_height / theApp.m_program->m_units << _(" long");
+				changes.push_back(change);
 			} // End if - else
 		} // End if - then
 	} // End if - then
 
+	std::list<wxString> extra_changes = CSpeedOp::DesignRulesAdjustment(apply_changes);
+	std::copy( extra_changes.begin(), extra_changes.end(), std::inserter( changes, changes.end() ));
 
 	return(changes);
 
@@ -690,20 +631,7 @@ std::list<wxString> CTapping::DesignRulesAdjustment(const bool apply_changes)
  */
 /* static */ bool CTapping::ValidType( const int object_type )
 {
-    switch (object_type)
-    {
-        case PointType:
-        case CircleType:
-        case SketchType:
-        case DrillingType:
-        case ProfileType:
-        case PocketType:
-		case FixtureType:
-            return(true);
-
-        default:
-            return(false);
-    }
+    return(CDrilling::ValidType(object_type));
 }
 
 

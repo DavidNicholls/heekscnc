@@ -7,8 +7,6 @@
 
 #include "stdafx.h"
 
-#ifndef STABLE_OPS_ONLY
-
 #include "CounterBore.h"
 #include "CNCConfig.h"
 #include "ProgramCanvas.h"
@@ -24,6 +22,7 @@
 #include "PythonStuff.h"
 #include "MachineState.h"
 #include "Program.h"
+#include "Fixtures.h"
 
 #include <sstream>
 #include <algorithm>
@@ -120,6 +119,18 @@ Python CCounterBore::GenerateGCodeForOneLocation( const CNCPoint & location, con
 	double cutting_depth = m_depth_op_params.m_start_depth;
 	double final_depth   = m_depth_op_params.m_final_depth;
 	double tool_overlap_proportion = 0.95;
+
+	if (cutting_depth < final_depth)
+	{
+	    wxMessageBox(_T("ERROR in Counterbore data.  Start depth < Final Depth"));
+	    return(python);
+	}
+
+	if (m_depth_op_params.m_step_down <= 0)
+	{
+        wxMessageBox(_("Step down must be a positive number"));
+        return(python);
+	}
 
 	CNCPoint point( location );
 	CNCPoint centre( point );
@@ -403,77 +414,104 @@ void CCounterBore::glCommands(bool select, bool marked, bool no_color)
 
 	if(marked && !no_color)
 	{
-		// For all coordinates that relate to these reference objects, draw the graphics that represents
-		// both a drilling hole and a counterbore.
+	    std::list<CFixture> fixtures = PrivateFixtures();
+        if (fixtures.size() == 0)
+        {
+            fixtures = theApp.m_program->Fixtures()->PublicFixtures();
+        }
 
-		std::vector<CNCPoint> locations = CDrilling::FindAllLocations( this );
-		for (std::vector<CNCPoint>::const_iterator l_itLocation = locations.begin(); l_itLocation != locations.end(); l_itLocation++)
-		{
-			std::list< CNCPoint > circle = PointsAround( *l_itLocation, m_params.m_diameter / 2, 10 );
+        for (std::list<CFixture>::iterator itFixture = fixtures.begin(); itFixture != fixtures.end(); itFixture++)
+        {
+            // For all coordinates that relate to these reference objects, draw the graphics that represents
+            // both a drilling hole and a counterbore.
 
-			glBegin(GL_LINE_STRIP);
-			// Once around the top circle.
-			for (std::list<CNCPoint>::const_iterator l_itPoint = circle.begin(); l_itPoint != circle.end(); l_itPoint++)
-			{
-				GLdouble start[3], end[3];
+            std::vector<CNCPoint> locations = CDrilling::FindAllLocations( this );
+            for (std::vector<CNCPoint>::const_iterator l_itLocation = locations.begin(); l_itLocation != locations.end(); l_itLocation++)
+            {
+                std::list< CNCPoint > circle = PointsAround( *l_itLocation, m_params.m_diameter / 2, 10 );
 
-				start[0] = l_itPoint->X();
-				start[1] = l_itPoint->Y();
-				start[2] = m_depth_op_params.m_start_depth;
+                glBegin(GL_LINE_STRIP);
+                // Once around the top circle.
+                for (std::list<CNCPoint>::const_iterator l_itPoint = circle.begin(); l_itPoint != circle.end(); l_itPoint++)
+                {
+                    gp_Pnt point = itFixture->Adjustment(*l_itPoint);
+                    GLdouble start[3], end[3];
 
-				l_itPoint++;
+                    start[0] = point.X();
+                    start[1] = point.Y();
+                    start[2] = m_depth_op_params.m_start_depth;
 
-				if (l_itPoint != circle.end())
-				{
-					end[0] = l_itPoint->X();
-					end[1] = l_itPoint->Y();
-					end[2] = m_depth_op_params.m_start_depth;
+                    l_itPoint++;
 
-					glVertex3dv( start );
-					glVertex3dv( end );
-				} // End if - then
-			} // End for
+                    if (l_itPoint != circle.end())
+                    {
+                        gp_Pnt point = itFixture->Adjustment(*l_itPoint);
 
-			// Once around the bottom circle.
-			for (std::list<CNCPoint>::const_iterator l_itPoint = circle.begin(); l_itPoint != circle.end(); l_itPoint++)
-			{
-				GLdouble start[3], end[3];
+                        end[0] = point.X();
+                        end[1] = point.Y();
+                        end[2] = m_depth_op_params.m_start_depth;
 
-				start[0] = l_itPoint->X();
-				start[1] = l_itPoint->Y();
-				start[2] = m_depth_op_params.m_final_depth;
+                        gp_Pnt from = itFixture->ReverseAdjustment( gp_Pnt(start[0], start[1], start[2]) );
+                        gp_Pnt to = itFixture->ReverseAdjustment( gp_Pnt(end[0], end[1], end[2]) );
 
-				l_itPoint++;
+                        glVertex3d( from.X(), from.Y(), from.Z() );
+                        glVertex3d( to.X(), to.Y(), to.Z() );
+                    } // End if - then
+                } // End for
 
-				if (l_itPoint != circle.end())
-				{
-					end[0] = l_itPoint->X();
-					end[1] = l_itPoint->Y();
-					end[2] = m_depth_op_params.m_final_depth;
+                // Once around the bottom circle.
+                for (std::list<CNCPoint>::const_iterator l_itPoint = circle.begin(); l_itPoint != circle.end(); l_itPoint++)
+                {
+                    gp_Pnt point = itFixture->Adjustment(*l_itPoint);
 
-					glVertex3dv( start );
-					glVertex3dv( end );
-				} // End if - then
-			} // End for
+                    GLdouble start[3], end[3];
 
-			// And once to join the two circles together.
-			for (std::list<CNCPoint>::const_iterator l_itPoint = circle.begin(); l_itPoint != circle.end(); l_itPoint++)
-			{
-				GLdouble start[3], end[3];
+                    start[0] = point.X();
+                    start[1] = point.Y();
+                    start[2] = m_depth_op_params.m_final_depth;
 
-				start[0] = l_itPoint->X();
-				start[1] = l_itPoint->Y();
-				start[2] = m_depth_op_params.m_start_depth;
+                    l_itPoint++;
 
-				end[0] = l_itPoint->X();
-				end[1] = l_itPoint->Y();
-				end[2] = m_depth_op_params.m_final_depth;
+                    if (l_itPoint != circle.end())
+                    {
+                        gp_Pnt point = itFixture->Adjustment(*l_itPoint);
 
-				glVertex3dv( start );
-				glVertex3dv( end );
-				glVertex3dv( start );
-			} // End for
-			glEnd();
+                        end[0] = point.X();
+                        end[1] = point.Y();
+                        end[2] = m_depth_op_params.m_final_depth;
+
+                        gp_Pnt from = itFixture->ReverseAdjustment( gp_Pnt(start[0], start[1], start[2]) );
+                        gp_Pnt to = itFixture->ReverseAdjustment( gp_Pnt(end[0], end[1], end[2]) );
+
+                        glVertex3d( from.X(), from.Y(), from.Z() );
+                        glVertex3d( to.X(), to.Y(), to.Z() );
+                    } // End if - then
+                } // End for
+
+                // And once to join the two circles together.
+                for (std::list<CNCPoint>::const_iterator l_itPoint = circle.begin(); l_itPoint != circle.end(); l_itPoint++)
+                {
+                    gp_Pnt point = itFixture->Adjustment(*l_itPoint);
+
+                    GLdouble start[3], end[3];
+
+                    start[0] = point.X();
+                    start[1] = point.Y();
+                    start[2] = m_depth_op_params.m_start_depth;
+
+                    end[0] = point.X();
+                    end[1] = point.Y();
+                    end[2] = m_depth_op_params.m_final_depth;
+
+                    gp_Pnt from = itFixture->ReverseAdjustment( gp_Pnt(start[0], start[1], start[2]) );
+                    gp_Pnt to = itFixture->ReverseAdjustment( gp_Pnt(end[0], end[1], end[2]) );
+
+                    glVertex3d( from.X(), from.Y(), from.Z() );
+                    glVertex3d( to.X(), to.Y(), to.Z() );
+                    glVertex3d( from.X(), from.Y(), from.Z() );
+                } // End for
+                glEnd();
+            } // End for
 		} // End for
 	} // End if - then
 }
@@ -674,6 +712,28 @@ CCounterBore::CCounterBore(	const Symbols_t &symbols,
             } // End if - then
         } // End for
     } // End if - then
+    else
+    {
+        // If there are no drilling operations as children, look to see how big the bounding
+        // box is for each of the child objects.  The scenario we're looking for is where a
+        // circular sketch is used as a child element.  In this case, get the counterbore
+        // diameter from the sketch bounding box size.
+
+        for (HeeksObj *child = GetFirstChild(); child != NULL; child = GetNextChild())
+        {
+            if (child->GetType() == SketchType)
+            {
+                CBox box;
+                child->GetBox(box);
+
+                if (box.Width() > 0)
+                {
+                    m_depth_op_params.m_final_depth = m_depth_op_params.m_start_depth - (box.Width() / 5.0);
+                    m_params.m_diameter = box.Width();
+                }
+            }
+        }
+    }
 }
 
 bool CCounterBoreParams::operator== ( const CCounterBoreParams & rhs ) const
@@ -692,4 +752,45 @@ bool CCounterBore::operator== ( const CCounterBore & rhs ) const
 	return(CDepthOp::operator==(rhs));
 }
 
-#endif
+
+
+/**
+	This method adjusts any parameters that don't make sense.  It should report a list
+	of changes in the list of strings.
+ */
+std::list<wxString> CCounterBore::DesignRulesAdjustment(const bool apply_changes)
+{
+	std::list<wxString> changes;
+
+	if (m_tool_number > 0)
+	{
+		// Make sure the hole depth isn't greater than the tool's cutting depth.
+		CTool *pDrill = (CTool *) CTool::Find( m_tool_number );
+		if (pDrill)
+		{
+			if ((pDrill->m_params.m_type != CToolParams::eEndmill) &&
+				(pDrill->m_params.m_type != CToolParams::eSlotCutter) &&
+				(pDrill->m_params.m_type != CToolParams::eBallEndMill))
+			{
+				wxString change;
+				change << DesignRulesPreamble() << _("is using a ") << pDrill->m_params.m_type;
+				changes.push_back(change);
+			}
+
+			if ((pDrill->CuttingRadius() * 2.0) > m_params.m_diameter)
+			{
+				wxString change;
+				change << DesignRulesPreamble() << _("Tool diameter (") << (pDrill->CuttingRadius() * 2.0) / theApp.m_program->m_units << _(") is larger than the counterbore's diameter (") << m_params.m_diameter / theApp.m_program->m_units << _T(")");
+				changes.push_back(change);
+			}
+		}
+	} // End if - then
+
+	std::list<wxString> extra_changes = CDepthOp::DesignRulesAdjustment(apply_changes);
+	std::copy( extra_changes.begin(), extra_changes.end(), std::inserter( changes, changes.end() ));
+
+	return(changes);
+
+} // End DesignRulesAdjustment() method
+
+

@@ -8,7 +8,6 @@
  * This program is released under the BSD license. See the file COPYING for
  * details.
  */
-#ifndef STABLE_OPS_ONLY
 
 #include "DepthOp.h"
 #include "HeeksCNCTypes.h"
@@ -17,7 +16,8 @@
 #include "CNCPoint.h"
 #include <TopoDS_Wire.hxx>
 #include <TopoDS_Edge.hxx>
-
+#include <BRepAdaptor_Curve.hxx>
+#include <GCPnts_AbscissaPoint.hxx>
 
 class CContour;
 
@@ -111,6 +111,234 @@ public:
 	typedef std::list< Symbol_t > Symbols_t;
 
 public:
+    class CDouble
+	{
+	public:
+		CDouble(const double value)
+		{
+			m_value = value;
+		}
+
+		~CDouble() { }
+
+		CDouble( const CDouble & rhs )
+		{
+			*this = rhs;
+		}
+
+		CDouble & operator= ( const CDouble & rhs )
+		{
+			if (this != &rhs)
+			{
+				m_value = rhs.m_value;
+			}
+
+			return(*this);
+		}
+
+		CDouble & operator*= ( const CDouble & rhs )
+		{
+			m_value *= rhs.m_value;
+			return(*this);
+		}
+
+		CDouble & operator/= ( const CDouble & rhs )
+		{
+			m_value /= rhs.m_value;
+			return(*this);
+		}
+
+		CDouble & operator+= ( const CDouble & rhs )
+		{
+			m_value += rhs.m_value;
+			return(*this);
+		}
+
+		CDouble & operator-= ( const CDouble & rhs )
+		{
+			m_value -= rhs.m_value;
+			return(*this);
+		}
+
+		bool operator==( const CDouble & rhs ) const
+		{
+			if (fabs(m_value - rhs.m_value) < (2.0 * heeksCAD->GetTolerance())) return(true);
+			return(false);
+		}
+
+		bool operator< (const CDouble & rhs ) const
+		{
+			if (*this == rhs) return(false);
+			return(m_value < rhs.m_value);
+		}
+
+		bool operator<= (const CDouble & rhs ) const
+		{
+			if (*this == rhs) return(true);
+			return(m_value < rhs.m_value);
+		}
+
+		bool operator> (const CDouble & rhs ) const
+		{
+			if (*this == rhs) return(false);
+			return(m_value > rhs.m_value);
+		}
+
+		double Value() const { return(m_value); }
+
+	private:
+		double	m_value;
+	};
+
+
+	/**
+		Container for a single TopoDS_Edge along with all its various parameters.
+		NOTE: The OpenCascade library uses the terms FirstParameter() and LastParameter()
+		to define a value that is representative of the first end of the edge and the last
+		end of the edge.  This class uses the terms StartParameter() and StartPoint() etc. to
+		indicate the starting point in terms of movement along the edge.  This distinction
+		is the based on the m_is_forwards boolean.  We may want to 'reverse' this edge
+		in terms of tool path.  This is simply a reversal of the m_is_forwards boolean
+		which allows us to select either the FirstParameter or the LastParameter as the
+		StartParameter as appropriate.  I know the terminology is a little confusing but
+		part of it comes from OpenCascade and the other part just makes sense in terms
+		of tool path progression.
+	 */
+	class Path
+	{
+	public:
+		Path(const TopoDS_Edge edge): m_edge(edge), m_curve(m_edge), m_is_forwards(true)
+		{
+			m_length = GCPnts_AbscissaPoint::Length( m_curve );
+		}
+
+		Path & operator= ( const Path & rhs )
+		{
+			if (this != &rhs)
+			{
+				m_edge = rhs.m_edge;
+				m_curve = BRepAdaptor_Curve(m_edge);
+				m_length = rhs.m_length;
+				m_is_forwards = rhs.m_is_forwards;
+			}
+
+			return(*this);
+		}
+
+		Path( const Path & rhs )
+		{
+			*this = rhs;	// call the assignment operator.
+		}
+
+		TopoDS_Edge Edge() const { return(m_edge); }
+
+		Standard_Real StartParameter() const;
+		Standard_Real EndParameter() const;
+
+		Standard_Real Proportion( const double proportion ) const;
+
+		CNCPoint StartPoint() const
+		{
+			gp_Pnt point;
+			m_curve.D0(StartParameter(),point);
+			return(point);
+		}
+
+		CNCPoint EndPoint() const
+		{
+			gp_Pnt point;
+			m_curve.D0(EndParameter(),point);
+			return(point);
+		}
+
+		Standard_Real Length() const
+		{
+			return(m_length);
+        }
+
+		void Reverse() { m_is_forwards = ! m_is_forwards; }
+
+		Python GCode( CMachineState *pMachineState, const double end_z );
+		Python GCode( Standard_Real start_u, Standard_Real end_u, CMachineState *pMachineState, const double end_z );
+		HeeksObj *Sketch() const;
+
+	private:
+		TopoDS_Edge m_edge;
+		BRepAdaptor_Curve m_curve;
+		bool		m_is_forwards;
+		Standard_Real m_length;
+	}; // End Path class definition
+
+	/**
+		This is a container of multiple Path objects that are both ordered and contiguous (connected)
+		It is similar to the Paths (plural) class except that the Paths class can hold a list of
+		ContiguousPath objects.  It can also merge ContiguousPath objects if the addition of an edge
+		marries two ContiguousPath objects together.
+	 */
+	class ContiguousPath
+	{
+	public:
+		ContiguousPath() { m_is_forwards = true; }
+		bool Add(Path path);
+		Standard_Real Length() const;
+		void Reverse();
+        bool Periodic() const;
+		std::vector<Path>::iterator Next(std::vector<Path>::iterator itPath);
+		CNCPoint StartPoint() const;
+		CNCPoint EndPoint() const;
+
+		ContiguousPath & operator+=( ContiguousPath &rhs );
+
+		Python GCode(	CMachineState *pMachineState,       // for both fixture and last_position.
+						const double clearance_height,
+						const double rapid_down_to_height,
+						const double start_depth,
+						const CContourParams::EntryMove_t entry_move_type );
+
+		bool SetStartPoint( CNCPoint location );
+
+		Python Ramp( std::vector<Path>::iterator itPath, CMachineState *pMachineState, const double end_z );
+		HeeksObj *Sketch() const;
+
+	private:
+		bool m_is_forwards;
+		std::vector<Path> m_paths;
+	}; // End of ContiguousPath class definition.
+
+	class Paths
+	{
+	public:
+		Paths() { }
+
+		void Reverse()
+		{
+			m_is_forwards = ! m_is_forwards;
+			for (std::vector<ContiguousPath>::iterator itPath = m_contiguous_paths.begin(); itPath != m_contiguous_paths.end(); itPath++)
+			{
+				itPath->Reverse();
+			}
+		}
+
+		::size_t Number() const { return(m_contiguous_paths.size()); }
+		Path Next() const;
+		void Add(const Path path);
+		void Add(const TopoDS_Edge edge);
+		void Add(const TopoDS_Wire wire);
+		bool Join( std::vector<ContiguousPath>::iterator lhs, std::vector<ContiguousPath>::iterator rhs );
+		Python GCode(	CMachineState *pMachineState,       // for both fixture and last_position.
+						const double clearance_height,
+						const double rapid_down_to_height,
+						const double start_depth,
+						const CContourParams::EntryMove_t entry_move_type );
+
+        bool GenerateSketches() const;
+
+	private:
+		std::vector<ContiguousPath> m_contiguous_paths;
+		bool		m_is_forwards;
+	}; // End Paths class definition.
+
+public:
 	//	These are references to the CAD elements whose position indicate where the Drilling Cycle begins.
 	//	If the m_params.m_sort_drilling_locations is false then the order of symbols in this list should
 	//	be respected when generating GCode.  We will, eventually, allow a user to sort the sub-elements
@@ -169,45 +397,18 @@ public:
 
 	std::list<wxString> DesignRulesAdjustment(const bool apply_changes);
 
-	static Python GeneratePathFromWire( 	const TopoDS_Wire & wire,
-											CMachineState *pMachineState,
-											const double clearance_height,
-											const double rapid_down_to_height,
-											const double start_depth,
-											const CContourParams::EntryMove_t entry_move_type );
-
-	static Python GeneratePathForEdge(		const TopoDS_Edge &edge,
-											const double first_parameter,
-											const double last_parameter,
-											const bool forwards,
-											CMachineState *pMachineState,
-											const double end_z );
-
-    static Python GenerateRampedEntry(      ::size_t starting_edge_offset,
-                                            std::vector<TopoDS_Edge> & edges,
-                                            CMachineState *pMachineState,
-											const double end_z );
+	static Python GCode( 	const TopoDS_Wire & wire,
+							CMachineState *pMachineState,
+							const double clearance_height,
+							const double rapid_down_to_height,
+							const double start_depth,
+							const CContourParams::EntryMove_t entry_move_type );
 
 	static bool Clockwise( const gp_Circ & circle );
 	void ReloadPointers();
 	static void GetOptions(std::list<Property *> *list);
-
-	static std::vector<TopoDS_Edge> SortEdges( const TopoDS_Wire & wire );
-	static bool DirectionTowarardsNextEdge( const TopoDS_Edge &from, const TopoDS_Edge &to );
-
-	static std::vector<TopoDS_Edge>::size_type NextOffset(	const std::vector<TopoDS_Edge> &edges,
-													const std::vector<TopoDS_Edge>::size_type edges_offset,
-													const int direction );
-
-	static bool EdgesJoin( const TopoDS_Edge &a, const TopoDS_Edge &b );
-
-public:
-	static CNCPoint GetStart(const TopoDS_Edge &edge);
-    static CNCPoint GetEnd(const TopoDS_Edge &edge);
-    static double GetLength(const TopoDS_Edge &edge);
 };
 
 
 #endif
 
-#endif // CONTOUR_CYCLE_CLASS_DEFINITION

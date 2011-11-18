@@ -83,6 +83,10 @@ class Creator:
         """Set metric units"""
         pass
 
+    def machine_units_metric(self, is_metric):
+        """Define machine units just in case we want to look at the machine variable values"""
+        pass
+
     def absolute(self):
         """Set absolute coordinates"""
         pass
@@ -100,18 +104,22 @@ class Creator:
         pass
 
     def set_temporary_origin(self, x=None, y=None, z=None, a=None, b=None, c=None):
-        """Set temporary origin G92"""
-        pass
+	"""Set temporary origin G92"""
+	pass
 
     def remove_temporary_origin(self):
-        """Remote temporary origin G92.1"""
-        pass
+	"""Remote temporary origin G92.1"""
+	pass
  
     ############################################################################
     ##  Tools
     
     def tool_change(self, id):
         """Change the tool"""
+        pass
+
+    def predefined_position(self, type):
+        """Move to pre-defined location (G28 or G30)"""
         pass
 
     def tool_defn(self, id, name='', radius=None, length=None, gradient=None):
@@ -124,6 +132,10 @@ class Creator:
 
     def offset_length(self, id, length=None):
         """Set tool length offsetting"""
+        pass
+
+    def measure_and_offset_tool(self, distance=None, switch_offset_variable_name=None, fixture_offset_variable_name=None, feed_rate=None ):
+	"""Probe down up to 'distance', allow for the switch height and add tool length compenstation"""
         pass
 
     ############################################################################
@@ -140,11 +152,6 @@ class Creator:
     def workplane(self, id):
         """Set the workplane"""
         pass
-
-    def clearanceplane(self,z=None):
-        """set clearance plane"""
-        pass
-
     ############################################################################
     ##  APT360 like Transformation Definitions
     ##  These definitions were created while looking at Irvin Kraal's book on APT
@@ -153,7 +160,7 @@ class Creator:
     def matrix(self,a1=None,b1=None,c1=None,a2=None,b2=None,c2=None,a3=None,b3=None,c3=None):
         """Create a matrix for transformations"""
         pass
-    def translate(self,x=None,y=None,z=None):
+    def transl(self,x=None,y=None,z=None):
         """Translate in x,y,z direction"""
         pass
     def rotate(self,xyrot=None,yzrot=None,zxrot=None,angle=None):
@@ -199,7 +206,7 @@ class Creator:
     ############################################################################
     ##  Moves
     
-    def rapid(self, x=None, y=None, z=None, a=None, b=None, c=None, machine_coordinates=None):
+    def rapid(self, x=None, y=None, z=None, a=None, b=None, c=None):
         """Rapid move"""
         pass
 
@@ -213,6 +220,18 @@ class Creator:
 
     def arc_ccw(self, x=None, y=None, z=None, i=None, j=None, k=None, r=None):
         """Counterclockwise arc move"""
+        pass
+
+    def nurbs_begin_definition(self, id, degree=None, x=None, y=None, weight=None):
+        """Non-Uniform Rational B-Spline path movement"""
+        pass
+
+    def nurbs_add_pole(self, id, x=None, y=None, weight=None):
+        """Non-Uniform Rational B-Spline path movement"""
+        pass
+
+    def nurbs_end_definition(self, id):
+        """Non-Uniform Rational B-Spline path movement"""
         pass
 
     def dwell(self, t):
@@ -253,7 +272,7 @@ class Creator:
         """Profile routine"""
         pass
 
-    def drill(self, x=None, y=None, z=None, depth=None, standoff=None, dwell=None, peck_depth=None, retract_mode=None, spindle_mode=None):
+    def drill(self, x=None, y=None, z=None, depth=None, standoff=None, dwell=None, peck_depth=None, retract_mode=None, spindle_mode=None, clearance_height=None):
         """Drilling routines"""
         pass
 
@@ -299,13 +318,13 @@ class Creator:
         pass
 
     def probe_linear_centre_outside(self, x1=None, y1=None, depth=None, x2=None, y2=None ):
-        pass
+	pass
 
     def probe_single_point(self, point_along_edge_x=None, point_along_edge_y=None, depth=None, retracted_point_x=None, retracted_point_y=None, destination_point_x=None, destination_point_y=None, intersection_variable_x=None, intersection_variable_y=None, probe_offset_x_component=None, probe_offset_y_component=None ):
         pass
 
-    def probe_downward_point(self, x=None, y=None, depth=None, intersection_variable_z=None):
-        pass
+    def probe_downward_point(self, depth=None, intersection_variable_z=None, touch_off_as_z=None, rapid_down_to_height=None):
+	pass
 
     def report_probe_results(self, x1=None, y1=None, z1=None, x2=None, y2=None, z2=None, x3=None, y3=None, z3=None, x4=None, y4=None, z4=None, x5=None, y5=None, z5=None, x6=None, y6=None, z6=None, xml_file_name=None ):
         pass
@@ -319,17 +338,20 @@ class Creator:
     def log_message(self, message=None):
         pass
 
+    def message(self, text=None):
+        pass
+
     def close_log_file(self):
         pass
 
     def rapid_to_midpoint(self, x1=None, y1=None, z1=None, x2=None, y2=None, z2=None):
-        pass
+	pass
 
     def rapid_to_intersection(self, x1, y1, x2, y2, x3, y3, x4, y4, intersection_x, intersection_y, ua_numerator, ua_denominator, ua, ub_numerator, ub):
-        pass
+	pass
 
     def rapid_to_rotated_coordinate(self, x1, y1, x2, y2, ref_x, ref_y, x_current, y_current, x_final, y_final):
-        pass
+	pass
 
     def set_path_control_mode(self, mode, motion_blending_tolerance, naive_cam_tolerance ):
         pass
@@ -343,37 +365,37 @@ class Creator:
         pass
 
     def extruder_on(self):
-        """Turn on the extruder"""
-        pass
+	"""Turn on the extruder"""
+	pass
 
     def extruder_off(self):
-        """turn off the extruder"""
-        pass
+	"""turn off the extruder"""
+	pass
 
     def set_extruder_flowrate(self, flowrate):
-        """Set the flowrate for the extruder"""
-        pass
+	"""Set the flowrate for the extruder"""
+	pass
 
     def extruder_temp(self, temp):
-        """Set the extruder temp in celsius"""
-        pass
+	"""Set the extruder temp in celsius"""
+	pass
 
     def fan_on(self):
-        """turn on the cooling fan"""
-        pass
+	"""turn on the cooling fan"""
+	pass
 
     def fan_off(self):
-        """turn off the cooling fan"""
-        pass
+	"""turn off the cooling fan"""
+	pass
 
     def build_bed_temp(self, temp):
-        """Set the bed temp in celsius"""
-        pass
+	"""Set the bed temp in celsius"""
+	pass
 
     def chamber_temp(self, temp):
-        """Set the chamber temp in celsius"""
-        pass
-
+	"""Set the chamber temp in celsius"""
+	pass
+ 	
 ################################################################################
 
 creator = Creator()
@@ -423,6 +445,10 @@ def imperial():
 def metric():
     creator.metric()
 
+def machine_units_metric(is_metric):
+    """Define machine units just in case we want to look at the machine variable values"""
+    creator.machine_units_metric(is_metric)
+
 def absolute():
     creator.absolute()
 
@@ -447,6 +473,9 @@ def remove_temporary_origin():
 def tool_change(id):
     creator.tool_change(id)
 
+def predefined_position(type):
+    creator.predefined_position(type)
+
 def tool_defn(id, name='', radius=None, length=None, gradient=None):
     creator.tool_defn(id, name, radius, length, gradient)
 
@@ -455,6 +484,9 @@ def offset_radius(id, radius=None):
 
 def offset_length(id, length=None):
     creator.offset_length(id, length)
+
+def measure_and_offset_tool(distance=None, switch_offset_variable_name=None, fixture_offset_variable_name=None, feed_rate=None ):
+    creator.measure_and_offset_tool(distance, switch_offset_variable_name, fixture_offset_variable_name, feed_rate )
 
 ############################################################################
 ##  Datums
@@ -468,9 +500,6 @@ def datum_set(x=None, y=None, z=None, a=None, b=None, c=None):
 def workplane(id):
     creator.workplane(id)
 
-def clearanceplane(z=None):
-    creator.clearanceplane(z)
-
 ############################################################################
 ##  APT360 like Transformation Definitions
 ##  These definitions were created while looking at Irvin Kraal's book on APT
@@ -479,8 +508,8 @@ def clearanceplane(z=None):
 def matrix(a1=None,b1=None,c1=None,a2=None,b2=None,c2=None,a3=None,b3=None,c3=None):
     creator.matrix(a1,b1,c1,a2,b2,c2,a3,b3,c3)
     
-def translate(x=None,y=None,z=None):
-    creator.translate(x,y,z)
+def transl(x=None,y=None,z=None):
+    creator.transl(x,y,z)
     
 def rotate(xyrot=None,yzrot=None,zxrot=None,angle=None):
     creator.rotate(xyrot,yzrot,zxrot,angle)
@@ -532,6 +561,18 @@ def arc_cw(x=None, y=None, z=None, i=None, j=None, k=None, r=None):
 def arc_ccw(x=None, y=None, z=None, i=None, j=None, k=None, r=None):
     creator.arc_ccw(x, y, z, i, j, k, r)
 
+def nurbs_begin_definition(id, degree=None, x=None, y=None, weight=None):
+    """Non-Uniform Rational B-Spline path movement"""
+    creator.nurbs_begin_definition(id, degree, x, y, weight)
+
+def nurbs_add_pole(id, x=None, y=None, weight=None):
+    """Non-Uniform Rational B-Spline path movement"""
+    creator.nurbs_add_pole(id, x, y, weight)
+
+def nurbs_end_definition(id):
+    """Non-Uniform Rational B-Spline path movement"""
+    creator.nurbs_end_definition(id)
+
 def dwell(t):
     creator.dwell(t)
 
@@ -571,8 +612,8 @@ def pocket():
 def profile():
     creator.profile()
 
-def drill(x=None, y=None, z=None, depth=None, standoff=None, dwell=None, peck_depth=None, retract_mode=None, spindle_mode=None):
-    creator.drill(x, y, z, depth, standoff, dwell, peck_depth, retract_mode, spindle_mode)
+def drill(x=None, y=None, z=None, depth=None, standoff=None, dwell=None, peck_depth=None, retract_mode=None, spindle_mode=None, clearance_height=None):
+    creator.drill(x, y, z, depth, standoff, dwell, peck_depth, retract_mode, spindle_mode, clearance_height)
 
 
 def tap(x=None, y=None, z=None, zretract=None, depth=None, standoff=None, dwell_bottom=None, pitch=None, stoppos=None, spin_in=None, spin_out=None, tap_mode=None, direction=None):
@@ -614,8 +655,8 @@ def variable_set(id, value):
 def probe_single_point(point_along_edge_x=None, point_along_edge_y=None, depth=None, retracted_point_x=None, retracted_point_y=None, destination_point_x=None, destination_point_y=None, intersection_variable_x=None, intersection_variable_y=None, probe_offset_x_component=None, probe_offset_y_component=None ):
     creator.probe_single_point(point_along_edge_x, point_along_edge_y, depth, retracted_point_x, retracted_point_y, destination_point_x, destination_point_y, intersection_variable_x, intersection_variable_y, probe_offset_x_component, probe_offset_y_component )
 
-def probe_downward_point(x=None, y=None, depth=None, intersection_variable_z=None):
-    creator.probe_downward_point(x, y, depth, intersection_variable_z)
+def probe_downward_point(depth=None, intersection_variable_z=None, touch_off_as_z=None, rapid_down_to_height=None):
+    creator.probe_downward_point(depth, intersection_variable_z, touch_off_as_z, rapid_down_to_height)
 
 def report_probe_results(x1=None, y1=None, z1=None, x2=None, y2=None, z2=None, x3=None, y3=None, z3=None, x4=None, y4=None, z4=None, x5=None, y5=None, z5=None, x6=None, y6=None, z6=None, xml_file_name=None ):
     creator.report_probe_results(x1, y1, z1, x2, y2, z2, x3, y3, z3, x4, y4, z4, x5, y5, z5, x6, y6, z6, xml_file_name)
@@ -628,6 +669,9 @@ def log_coordinate(x=None, y=None, z=None):
 
 def log_message(message=None):
     creator.log_message(message)
+
+def message(text=None):
+    creator.message(text)
 
 def close_log_file():
     creator.close_log_file()

@@ -20,10 +20,12 @@
 #include "CTool.h"
 #include "Profile.h"
 #include "Fixture.h"
+#include "Fixtures.h"
 #include "CNCPoint.h"
 #include "MachineState.h"
 #include "Program.h"
 #include "CounterBore.h"
+#include "Tools.h"
 
 #include <sstream>
 #include <iomanip>
@@ -117,8 +119,15 @@ static void on_set_dwell(double value, HeeksObj* object)
 
 static void on_set_depth(double value, HeeksObj* object)
 {
-	((CDrilling*)object)->m_params.m_depth = value;
-	((CDrilling*)object)->m_params.write_values_to_config();
+    if (value <= 0)
+    {
+        wxMessageBox(_("Depth must be a positive number as it is relative to the starting point's position"));
+    }
+    else
+    {
+        ((CDrilling*)object)->m_params.m_depth = value;
+        ((CDrilling*)object)->m_params.write_values_to_config();
+    }
 }
 
 static void on_set_peck_depth(double value, HeeksObj* object)
@@ -243,11 +252,7 @@ Python CDrilling::AppendTextToProgram( CMachineState *pMachineState )
 	std::vector<CNCPoint> locations = CDrilling::FindAllLocations(this, pMachineState->Location(), m_params.m_sort_drilling_locations != 0, NULL);
 	for (std::vector<CNCPoint>::const_iterator l_itLocation = locations.begin(); l_itLocation != locations.end(); l_itLocation++)
 	{
-#ifdef STABLE_OPS_ONLY
-		gp_Pnt point = *l_itLocation;
-#else
 		gp_Pnt point = pMachineState->Fixture().Adjustment( *l_itLocation );
-#endif
 
 		python << _T("drill(")
 			<< _T("x=") << point.X()/theApp.m_program->m_units << _T(", ")
@@ -258,8 +263,8 @@ Python CDrilling::AppendTextToProgram( CMachineState *pMachineState )
 			<< _T("dwell=") << m_params.m_dwell << _T(", ")
 			<< _T("peck_depth=") << m_params.m_peck_depth/theApp.m_program->m_units << _T(", ")
 			<< _T("retract_mode=") << m_params.m_retract_mode << _T(", ")
-			<< _T("spindle_mode=") << m_params.m_spindle_mode// << _T(", ")
-			//<< _T("clearance_height=") << m_params.ClearanceHeight()
+			<< _T("spindle_mode=") << m_params.m_spindle_mode << _T(", ")
+			<< _T("clearance_height=") << m_params.ClearanceHeight()
 			<< _T(")\n");
         pMachineState->Location(point); // Remember where we are.
 	} // End for
@@ -381,58 +386,85 @@ std::list< CNCPoint > CDrilling::DrillBitVertices( const CNCPoint & origin, cons
  */
 void CDrilling::glCommands(bool select, bool marked, bool no_color)
 {
-	CSpeedOp::glCommands(select, marked, no_color);
-
-	if(marked && !no_color)
+    std::list<CFixture> fixtures = PrivateFixtures();
+	if (fixtures.size() == 0)
 	{
-		double l_dHoleDiameter = 12.7;	// Default at half-inch (in mm)
+	    fixtures = theApp.m_program->Fixtures()->PublicFixtures();
+	}
 
-		if (m_tool_number > 0)
-		{
-			HeeksObj* Tool = heeksCAD->GetIDObject( ToolType, m_tool_number );
-			if (Tool != NULL)
-			{
-                		l_dHoleDiameter = ((CTool *) Tool)->m_params.m_diameter;
-			} // End if - then
-		} // End if - then
+    for (std::list<CFixture>::iterator itFixture = fixtures.begin(); itFixture != fixtures.end(); itFixture++)
+    {
+        if (m_params.m_depth < 0)
+        {
+            m_params.m_depth *= -1.0;
+        }
 
-		std::vector<CNCPoint> locations = CDrilling::FindAllLocations(this);
+        CSpeedOp::glCommands(select, marked, no_color);
 
-		for (std::vector<CNCPoint>::const_iterator l_itLocation = locations.begin(); l_itLocation != locations.end(); l_itLocation++)
-		{
-			GLdouble start[3], end[3];
+        if(marked && !no_color)
+        {
+            double l_dHoleDiameter = 12.7;	// Default at half-inch (in mm)
 
-			start[0] = l_itLocation->X();
-			start[1] = l_itLocation->Y();
-			start[2] = l_itLocation->Z();
+            if (m_tool_number > 0)
+            {
+                CTool* Tool = CTool::Find(m_tool_number);
+                if (Tool != NULL)
+                {
+                    l_dHoleDiameter = Tool->CuttingRadius() * 2.0;
+                } // End if - then
+            } // End if - then
 
-			end[0] = l_itLocation->X();
-			end[1] = l_itLocation->Y();
-			end[2] = l_itLocation->Z();
+            std::vector<CNCPoint> locations = CDrilling::FindAllLocations(this);
 
-			end[2] -= m_params.m_depth;
+            for (std::vector<CNCPoint>::const_iterator l_itLocation = locations.begin(); l_itLocation != locations.end(); l_itLocation++)
+            {
+                GLdouble start[3], end[3];
 
-			glBegin(GL_LINE_STRIP);
-			glVertex3dv( start );
-			glVertex3dv( end );
-			glEnd();
+                start[0] = l_itLocation->X();
+                start[1] = l_itLocation->Y();
+                start[2] = l_itLocation->Z();
 
-			std::list< CNCPoint > pointsAroundCircle = DrillBitVertices( 	*l_itLocation,
-												l_dHoleDiameter / 2,
-												m_params.m_depth);
+                end[0] = l_itLocation->X();
+                end[1] = l_itLocation->Y();
+                end[2] = l_itLocation->Z();
 
-			glBegin(GL_LINE_STRIP);
-			CNCPoint previous = *(pointsAroundCircle.begin());
-			for (std::list< CNCPoint >::const_iterator l_itPoint = pointsAroundCircle.begin();
-				l_itPoint != pointsAroundCircle.end();
-				l_itPoint++)
-			{
+                end[2] -= m_params.m_depth;
 
-				glVertex3d( l_itPoint->X(), l_itPoint->Y(), l_itPoint->Z() );
-			}
-			glEnd();
-		} // End for
-	} // End if - then
+                gp_Pnt from = itFixture->Reorient( gp_Pnt(start[0], start[1], start[2]) );
+                gp_Pnt to = itFixture->Reorient( gp_Pnt(end[0], end[1], end[2]) );
+
+                glBegin(GL_LINE_STRIP);
+                glVertex3d( from.X(), from.Y(), from.Z() );
+                glVertex3d( to.X(), to.Y(), to.Z() );
+                glEnd();
+
+                std::list< CNCPoint > pointsAroundCircle = DrillBitVertices( 	*l_itLocation,
+                                                    l_dHoleDiameter / 2,
+                                                    m_params.m_depth);
+
+                glBegin(GL_LINE_STRIP);
+                CNCPoint previous = *(pointsAroundCircle.begin());
+
+                previous = itFixture->Reorient( previous );
+
+                for (std::list< CNCPoint >::const_iterator l_itPoint = pointsAroundCircle.begin();
+                    l_itPoint != pointsAroundCircle.end();
+                    l_itPoint++)
+                {
+
+
+                    gp_Pnt point = itFixture->Reorient( *l_itPoint );
+
+                    glBegin(GL_LINE_STRIP);
+                    glVertex3d( previous.X(), previous.Y(), previous.Z() );
+                    glVertex3d( point.X(), point.Y(), point.Z() );
+                    glEnd();
+                    previous = point;
+                }
+                glEnd();
+            } // End for
+        } // End if - then
+    } // End for
 }
 
 
@@ -713,11 +745,7 @@ void CDrilling::ReloadPointers()
 			if (lhsPtr->GetType() == ProfileType)
 			{
 				std::vector<CNCPoint> starting_points;
-				CMachineState machine;
-#ifndef STABLE_OPS_ONLY
-				CFixture perfectly_aligned_fixture(NULL,CFixture::G54, false, 0.0);
-				machine.Fixture(perfectly_aligned_fixture);
-#endif
+				CMachineState machine(&(theApp.m_program->m_machine), CFixture(NULL,CFixture::G54, false, 0.0));
 
 				// to do, make this get the starting point again
 				//((CProfile *)lhsPtr)->AppendTextToProgram( starting_points, &machine );
@@ -750,7 +778,6 @@ void CDrilling::ReloadPointers()
                 } // End for
             } // End if - then
 
-#ifndef STABLE_OPS_ONLY
             if (lhsPtr->GetType() == CounterBoreType)
             {
                 std::vector<CNCPoint> holes = CDrilling::FindAllLocations((CCounterBore *)lhsPtr, starting_location, false, NULL);
@@ -762,8 +789,6 @@ void CDrilling::ReloadPointers()
                     } // End if - then
                 } // End for
             } // End if - then
-#endif
-
 		} // End if - then
 	} // End for
 
@@ -814,116 +839,37 @@ std::list<wxString> CDrilling::DesignRulesAdjustment(const bool apply_changes)
 {
 	std::list<wxString> changes;
 
-	// Make some special checks if we're using a chamfering bit.
-	if (m_tool_number > 0)
-	{
-		CTool *pChamfer = (CTool *) CTool::Find( m_tool_number );
-		if (pChamfer != NULL)
-		{
-			std::vector<CNCPoint> these_locations = CDrilling::FindAllLocations(this);
-
-			if (pChamfer->m_params.m_type == CToolParams::eChamfer)
-			{
-				// We need to make sure that the diameter of the hole (that will
-				// have been drilled in a previous drilling operation) is between
-				// the chamfering bit's flat_radius (smallest) and diamter/2 (largest).
-
-				// First find ALL drilling cycles that created this hole.  Make sure
-				// to get them all as we may have used a centre drill before the
-				// main hole is drilled.
-
-				for (HeeksObj *obj = theApp.m_program->Operations()->GetFirstChild();
-					obj != NULL;
-					obj = theApp.m_program->Operations()->GetNextChild())
-				{
-					if (obj->GetType() == DrillingType)
-					{
-						// Make sure we're looking at a hole drilled with something
-						// more than a centre drill.
-						CToolParams::eToolType type = CTool::CutterType( ((COp *)obj)->m_tool_number );
-						if (	(type == CToolParams::eDrill) ||
-							(type == CToolParams::eEndmill) ||
-							(type == CToolParams::eSlotCutter) ||
-							(type == CToolParams::eBallEndMill))
-						{
-							// See if any of the other drilling locations line up
-							// with our drilling locations.  If so, we must be
-							// chamfering a previously drilled hole.
-
-							std::vector<CNCPoint> previous_locations = CDrilling::FindAllLocations((CDrilling *)obj);
-							std::vector<CNCPoint> common_locations;
-							std::set_intersection( previous_locations.begin(), previous_locations.end(),
-										these_locations.begin(), these_locations.end(),
-										std::inserter( common_locations, common_locations.begin() ));
-							if (common_locations.size() > 0)
-							{
-								// We're here.  We must be chamfering a hole we've
-								// drilled previously.  Check the diameters.
-
-								CTool *pPreviousTool = CTool::Find( ((COp *)obj)->m_tool_number );
-								if (pPreviousTool->CuttingRadius() < pChamfer->m_params.m_flat_radius)
-								{
-#ifdef UNICODE
-									std::wostringstream l_ossChange;
-#else
-									std::ostringstream l_ossChange;
-#endif
-									l_ossChange << _("Chamfering bit for drilling op") << " (id=" << m_id << ") " << _("is too big for previously drilled hole") << " (drilling id=" << obj->m_id << ")\n";
-									changes.push_back( l_ossChange.str().c_str() );
-								} // End if - then
-
-								if (pPreviousTool->CuttingRadius() > (pChamfer->m_params.m_diameter/2.0))
-								{
-#ifdef UNICODE
-									std::wostringstream l_ossChange;
-#else
-									std::ostringstream l_ossChange;
-#endif
-									l_ossChange << _("Chamfering bit for drilling op") << " (id=" << m_id << ") " << _("is too small for previously drilled hole") << " (drilling id=" << obj->m_id << ")\n";
-									changes.push_back( l_ossChange.str().c_str() );
-								} // End if - then
-							} // End if - then
-
-						} // End if - then
-					} // End if - then
-				} // End for
-			} // End if - then
-		} // End if - then
-	} // End if - then
-
 	if (m_tool_number > 0)
 	{
 		// Make sure the hole depth isn't greater than the tool's cutting depth.
 		CTool *pDrill = (CTool *) CTool::Find( m_tool_number );
+		if ((pDrill->m_params.m_type != CToolParams::eDrill) && (pDrill->m_params.m_type != CToolParams::eCentreDrill))
+		{
+			wxString change;
+			change << DesignRulesPreamble() << _("is using a ") << pDrill->m_params.m_type;
+			changes.push_back(change);
+		}
+
 		if ((pDrill != NULL) && (pDrill->m_params.m_cutting_edge_height < m_params.m_depth))
 		{
 			// The drill bit we've chosen can't cut as deep as we've setup to go.
 
 			if (apply_changes)
 			{
-#ifdef UNICODE
-				std::wostringstream l_ossChange;
-#else
-				std::ostringstream l_ossChange;
-#endif
+				wxString change;
 
-				l_ossChange << _("Adjusting depth of drill cycle") << " id='" << m_id << "' " << _("from") << " '"
-					<< m_params.m_depth / theApp.m_program->m_units << "' " << _("to") << " "
-					<< pDrill->m_params.m_cutting_edge_height / theApp.m_program->m_units << "\n";
-				changes.push_back(l_ossChange.str().c_str());
+				change << DesignRulesPreamble() << _("Adjusting depth of drill cycle from '")
+					<< m_params.m_depth / theApp.m_program->m_units << _(" to ")
+					<< pDrill->m_params.m_cutting_edge_height / theApp.m_program->m_units;
+				changes.push_back(change);
 
 				m_params.m_depth = pDrill->m_params.m_cutting_edge_height;
 			} // End if - then
 			else
 			{
-#ifdef UNICODE
-				std::wostringstream l_ossChange;
-#else
-				std::ostringstream l_ossChange;
-#endif
-
-				l_ossChange << _("WARNING") << ": " << _("Drilling") << " (id=" << m_id << ").  " << _("Can't drill hole") << " " << m_params.m_depth / theApp.m_program->m_units << " when the drill bit's cutting length is only " << pDrill->m_params.m_cutting_edge_height << " long\n";
-				changes.push_back(l_ossChange.str().c_str());
+				wxString change;
+				change << DesignRulesPreamble() << _("Can't drill hole ") << m_params.m_depth / theApp.m_program->m_units << _(" when the drill bit's cutting length is only ") << pDrill->m_params.m_cutting_edge_height << _(" long\n");
+				changes.push_back(change);
 			} // End if - else
 		} // End if - then
 	} // End if - then
@@ -941,16 +887,11 @@ std::list<wxString> CDrilling::DesignRulesAdjustment(const bool apply_changes)
                         double depthOp_depth = ((CDepthOp *) pProfile)->m_depth_op_params.m_start_depth  - ((CDepthOp *) pProfile)->m_depth_op_params.m_final_depth;
                         if (depthOp_depth != m_params.m_depth)
                         {
-    #ifdef UNICODE
-                    std::wostringstream l_ossChange;
-    #else
-                    std::ostringstream l_ossChange;
-    #endif
-
-                            l_ossChange << _("Adjusting depth of drill cycle") << " (id='" << m_id << "') " << _("from") << " '"
-                                << m_params.m_depth / theApp.m_program->m_units << "' " << _("to") << " '"
-                                << depthOp_depth  / theApp.m_program->m_units<< "'\n";
-                            changes.push_back(l_ossChange.str().c_str());
+							wxString change;
+							change << DesignRulesPreamble() << _("Adjusting depth of drill cycle from '")
+                                << m_params.m_depth / theApp.m_program->m_units << _("' to '")
+                                << depthOp_depth  / theApp.m_program->m_units<< _T("'\n");
+                            changes.push_back(change);
 
                             if (apply_changes)
                             {
@@ -974,19 +915,14 @@ std::list<wxString> CDrilling::DesignRulesAdjustment(const bool apply_changes)
 		// cant have peck_depth > 0 then
 		if (m_params.m_peck_depth > 0)
 		{
-#ifdef UNICODE
-			std::wostringstream l_ossChange;
-#else
-			std::ostringstream l_ossChange;
-#endif
-
-			l_ossChange << _("WARNING") << ": " << _("cant have boring cycle with pecking > 0") << " (id=" << m_id << ")\n";
-			changes.push_back(l_ossChange.str().c_str());
-
+			wxString change;
+			change << DesignRulesPreamble() << _("cant have boring cycle with pecking > 0");
+			changes.push_back(change);
 		}
 	}
 
-
+	std::list<wxString> extra_changes = CSpeedOp::DesignRulesAdjustment(apply_changes);
+	std::copy( extra_changes.begin(), extra_changes.end(), std::inserter( changes, changes.end() ));
 
 	return(changes);
 
@@ -1055,18 +991,52 @@ double CDrillingParams::ClearanceHeight() const
 		// We need to figure out which is the 'active' fixture and return
 		// the clearance height from that fixture.
 
-#ifndef STABLE_OPS_ONLY
 		if (theApp.m_program->m_active_machine_state != NULL)
 		{
 			return(theApp.m_program->m_active_machine_state->Fixture().m_params.m_clearance_height);
 		}
 		else
-#endif
+		{
 			// This should not occur.  In any case, use the clearance value from the individual operation.
 			return(m_clearance_height);
+		}
 
 	case CProgram::eClearanceDefinedByOperation:
 	default:
 		return(m_clearance_height);
 	} // End switch
 }
+
+
+/**
+	This routine is called when the COp::m_tool_number value is changed.  If the tool
+	has been changed to a centre-drill then we don't want to peck any more.
+ */
+/* virtual */ void CDrilling::OnSetTool(const COp::ToolNumber_t new_tool_number)
+{
+	CTool *pTool = CTool::Find(new_tool_number);
+	if (pTool)
+	{
+		switch (pTool->m_params.m_type)
+		{
+		case CToolParams::eCentreDrill:
+			m_params.m_peck_depth = 0.0;
+			m_params.m_dwell = 0.0;
+			if (m_params.m_depth > pTool->m_params.m_cutting_edge_height)
+			{
+				m_params.m_depth = pTool->m_params.m_cutting_edge_height * 0.7;
+			}
+			break;
+
+		case CToolParams::eDrill:
+			m_params.m_peck_depth = pTool->m_params.m_diameter / 2.0;
+			m_params.m_dwell = 0.0;
+			if (m_params.m_depth > pTool->m_params.m_cutting_edge_height)
+			{
+				m_params.m_depth = pTool->m_params.m_cutting_edge_height * 0.7;
+			}
+			break;
+		}
+	}
+}
+

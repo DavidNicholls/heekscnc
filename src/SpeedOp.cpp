@@ -381,5 +381,14 @@ bool CSpeedOp::operator==(const CSpeedOp & rhs) const
 }
 
 
+std::list<wxString> CSpeedOp::DesignRulesAdjustment(const bool apply_changes)
+{
+	std::list<wxString> changes;
+
+	std::list<wxString> extra_changes = COp::DesignRulesAdjustment(apply_changes);
+	std::copy( extra_changes.begin(), extra_changes.end(), std::inserter( changes, changes.end() ));
+
+	return(changes);
+}
 
 

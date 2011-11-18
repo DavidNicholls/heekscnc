@@ -2,8 +2,6 @@
 #ifndef COUNTER_BORE_CLASS_DEFINITION
 #define COUNTER_BORE_CLASS_DEFINITION
 
-#ifndef STABLE_OPS_ONLY
-
 // CounterBore.h
 /*
  * Copyright (c) 2009, Dan Heeks, Perttu Ahola
@@ -125,8 +123,9 @@ public:
 	bool operator!= ( const CCounterBore & rhs ) const { return(! (*this == rhs)); }
 	bool IsDifferent( HeeksObj *other ) { return(*this != (*(CCounterBore *)other)); }
 
+	std::list<wxString> DesignRulesAdjustment(const bool apply_changes);
+
 };
 
 #endif
 
-#endif // COUNTER_BORE_CLASS_DEFINITION

@@ -2,7 +2,6 @@
 // Copyright (c) 2009, Dan Heeks
 // This program is released under the BSD license. See the file COPYING for details.
 
-#ifndef STABLE_OPS_ONLY
 #include "interface/ObjList.h"
 #include "HeeksCNCTypes.h"
 #include "Fixture.h"
@@ -28,13 +27,12 @@ public:
 	static HeeksObj* ReadFromXMLElement(TiXmlElement* pElem);
 	void GetTools(std::list<Tool*>* t_list, const wxPoint* p);
 
-	CFixture *Find( const CFixture::eCoordinateSystemNumber_t coordinate_system_number );
+	CFixture *Find( const CFixture::eCoordinateSystemNumber_t coordinate_system_number, const bool only_public_fixtures = false );
 	int GetNextFixture();
+	std::list<CFixture> PublicFixtures();
 
 	bool operator== ( const CFixtures & rhs ) const { return(ObjList::operator==(rhs)); }
 	bool operator!= ( const CFixtures & rhs ) const { return(! (*this == rhs)); }
 	bool IsDifferent( HeeksObj *other ) { return( *this != (*(CFixtures *)other) ); }
 
 };
-
-#endif

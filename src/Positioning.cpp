@@ -119,11 +119,7 @@ Python CPositioning::AppendTextToProgram( CMachineState *pMachineState )
 		location.SetZ( location.Z() + m_params.m_standoff );
 
 		// Rotate the point to align it with the fixture
-#ifdef STABLE_OPS_ONLY
-		CNCPoint point( location );
-#else
 		CNCPoint point( pMachineState->Fixture().Adjustment( location ) );
-#endif
 
 		python << _T("rapid(")
 			<< _T("x=") << point.X(true) << _T(", ")
@@ -302,6 +298,10 @@ void CPositioning::ReloadPointers()
 std::list<wxString> CPositioning::DesignRulesAdjustment(const bool apply_changes)
 {
 	std::list<wxString> changes;
+
+	std::list<wxString> extra_changes = COp::DesignRulesAdjustment(apply_changes);
+	std::copy( extra_changes.begin(), extra_changes.end(), std::inserter( changes, changes.end() ));
+
 	return(changes);
 
 } // End DesignRulesAdjustment() method
@@ -312,17 +312,7 @@ std::list<wxString> CPositioning::DesignRulesAdjustment(const bool apply_changes
  */
 /* static */ bool CPositioning::ValidType( const int object_type )
 {
-    switch (object_type)
-    {
-        case PointType:
-        case CircleType:
-        case SketchType:
-        case DrillingType:
-            return(true);
-
-        default:
-            return(false);
-    }
+   return(CDrilling::ValidType(object_type));
 }
 
 void CPositioning::GetTools(std::list<Tool*>* t_list, const wxPoint* p)
