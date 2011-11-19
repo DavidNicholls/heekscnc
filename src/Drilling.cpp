@@ -420,32 +420,34 @@ void CDrilling::glCommands(bool select, bool marked, bool no_color)
             {
                 GLdouble start[3], end[3];
 
-                start[0] = l_itLocation->X();
-                start[1] = l_itLocation->Y();
-                start[2] = l_itLocation->Z();
+				CNCPoint from( itFixture->Adjustment(*l_itLocation) );
+				CNCPoint to( itFixture->Adjustment(*l_itLocation) );
 
-                end[0] = l_itLocation->X();
-                end[1] = l_itLocation->Y();
-                end[2] = l_itLocation->Z();
+				from.ToDoubleArray(start);
+				to.ToDoubleArray(end);
 
                 end[2] -= m_params.m_depth;
 
-                gp_Pnt from = itFixture->Reorient( gp_Pnt(start[0], start[1], start[2]) );
-                gp_Pnt to = itFixture->Reorient( gp_Pnt(end[0], end[1], end[2]) );
+				{
+					gp_Pnt from = itFixture->ReverseAdjustment( gp_Pnt(start[0], start[1], start[2]) );
+					gp_Pnt to = itFixture->ReverseAdjustment( gp_Pnt(end[0], end[1], end[2]) );
 
-                glBegin(GL_LINE_STRIP);
-                glVertex3d( from.X(), from.Y(), from.Z() );
-                glVertex3d( to.X(), to.Y(), to.Z() );
-                glEnd();
+					glBegin(GL_LINE_STRIP);
+					glVertex3d( from.X(), from.Y(), from.Z() );
+					glVertex3d( to.X(), to.Y(), to.Z() );
+					glEnd();
+				}
 
-                std::list< CNCPoint > pointsAroundCircle = DrillBitVertices( 	*l_itLocation,
+
+				CNCPoint point( itFixture->Adjustment(*l_itLocation) );
+                std::list< CNCPoint > pointsAroundCircle = DrillBitVertices( 	point,
                                                     l_dHoleDiameter / 2,
                                                     m_params.m_depth);
 
                 glBegin(GL_LINE_STRIP);
                 CNCPoint previous = *(pointsAroundCircle.begin());
 
-                previous = itFixture->Reorient( previous );
+                previous = itFixture->ReverseAdjustment( previous );
 
                 for (std::list< CNCPoint >::const_iterator l_itPoint = pointsAroundCircle.begin();
                     l_itPoint != pointsAroundCircle.end();
@@ -453,7 +455,7 @@ void CDrilling::glCommands(bool select, bool marked, bool no_color)
                 {
 
 
-                    gp_Pnt point = itFixture->Reorient( *l_itPoint );
+                    gp_Pnt point = itFixture->ReverseAdjustment( *l_itPoint );
 
                     glBegin(GL_LINE_STRIP);
                     glVertex3d( previous.X(), previous.Y(), previous.Z() );
