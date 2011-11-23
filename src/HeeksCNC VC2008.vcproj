@@ -694,7 +694,7 @@
 				>
 				<Tool
 					Name="VCCustomBuildTool"
-					CommandLine="..\bin\byacc -d parser.y&#x0D;&#x0A;"
+					CommandLine="..\bin\byacc -d &quot;$(InputFile)&quot;"
 					Outputs="y.tab.c;y.tab.h"
 				/>
 			</FileConfiguration>
