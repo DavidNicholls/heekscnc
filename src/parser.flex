@@ -162,6 +162,7 @@ ANY		(.)
 ([gG]83) {	return G83;	}
 ([gG]84) {	return G84;	}
 ([gG]85) {	return G85;	}
+([gG]86) {	return G86;	}
 ([gG]89) {	return G89;	}
 ([gG]90) {	return G90;	}
 ([gG]91) {	return G91;	}

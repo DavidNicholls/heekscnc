@@ -447,9 +447,9 @@ public:
 	//	Constructors.
 	CProbe_Centre(const int tool_number = 0) : CProbing(_("Probe Centre"), tool_number, ProbeCentreType )
 	{
-		m_direction = int(eOutside);
+		m_direction = eOutside;
 		m_number_of_points = 2;
-		m_alignment = int(eXAxis);
+		m_alignment = eXAxis;
 
 		ReadFromConfig();
 		GenerateMeaningfullName();
@@ -483,10 +483,12 @@ public:
 	CProbing::PointsList_t GetPoints() const;
 	void OnChangeUnits(const double units);
 
+	wxString Name(const wxString axis, const wxString name) const;
+
 public:
-	int m_direction;	// Really eProbeDirection_t.  i.e. eInside or eOutside
+	eProbeDirection_t m_direction;
 	int m_number_of_points;	// Can be either 2 or 4 ONLY
-	int m_alignment;	// really eAlignment_t.  i.e. eXAxis or xYAxis
+	eAlignment_t m_alignment;
 };
 
 /**

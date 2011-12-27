@@ -58,6 +58,14 @@
 #include <BRepOffsetAPI_NormalProjection.hxx>
 #include <BRepProj_Projection.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
+#include <IntTools_EdgeEdge.hxx>
+#include <BRepBndLib.hxx>
+#include <IntTools_CommonPrt.hxx>
+#include <GeomAPI_ExtremaCurveCurve.hxx>
+#include <BRepAdaptor_HCurve.hxx>
+#include <BRepExtrema_ExtCC.hxx>
+#include <BRepExtrema_DistShapeShape.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
 
 extern CHeeksCADInterface* heeksCAD;
 
@@ -209,7 +217,6 @@ void CContourParams::ReadParametersFromXMLElement(TiXmlElement* pElem)
 
 const wxBitmap &CContour::GetIcon()
 {
-	if(!m_active)return GetInactiveIcon();
 	static wxBitmap* icon = NULL;
 	if(icon == NULL)icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/drilling.png")));
 	return *icon;
@@ -1321,9 +1328,9 @@ CContour::ContiguousPath & CContour::ContiguousPath::operator+=( ContiguousPath 
 /**
 	Generate a Sketch object representing all the ContiguousPath objects we contain.
  */
-bool CContour::Paths::GenerateSketches() const
+bool CContour::Paths::GenerateSketches()
 {
-    for (std::vector<ContiguousPath>::const_iterator itPath = m_contiguous_paths.begin(); itPath != m_contiguous_paths.end(); itPath++)
+    for (std::vector<ContiguousPath>::iterator itPath = m_contiguous_paths.begin(); itPath != m_contiguous_paths.end(); itPath++)
     {
         HeeksObj *object = itPath->Sketch();
         if (object) heeksCAD->Add( object, NULL );
@@ -1335,14 +1342,17 @@ bool CContour::Paths::GenerateSketches() const
 /**
 	Generate a Sketch representing all the Path objects we contain.
  */
-HeeksObj *CContour::ContiguousPath::Sketch() const
+HeeksObj *CContour::ContiguousPath::Sketch()
 {
     HeeksObj *sketch = heeksCAD->NewSketch();
-    for (std::vector<Path>::const_iterator itPath = m_paths.begin(); itPath != m_paths.end(); itPath++)
-    {
+
+	std::vector<Path>::iterator itPath = m_paths.begin();
+	do
+	{
         HeeksObj *object = itPath->Sketch();
         if (object) sketch->Add( object, NULL );
-    }
+		itPath = Next(itPath);
+    } while (itPath != m_paths.begin());
     return(sketch);
 }
 
@@ -1350,7 +1360,7 @@ HeeksObj *CContour::ContiguousPath::Sketch() const
 /**
 	Generate a Sketch representing this Path.
  */
-HeeksObj *CContour::Path::Sketch() const
+HeeksObj *CContour::Path::Sketch()
 {
 	Python python;
 
@@ -1403,7 +1413,7 @@ HeeksObj *CContour::Path::Sketch() const
 
                 up[0] = 0;
                 up[1] = 0;
-                up[2] = (Clockwise(circle)?-1:+1);
+                up[2] = (l_bClockwise?-1:+1);
 
 				return(heeksCAD->NewArc(start, end, centre, up ));
 			}
@@ -1574,3 +1584,213 @@ Standard_Real CContour::Path::EndParameter() const
 		return(m_curve.FirstParameter());
 	}
 }
+
+
+Bnd_Box CContour::ContiguousPath::BoundingBox() const
+{
+	Bnd_Box occ_box;
+
+	for (std::vector<Path>::const_iterator itPath = m_paths.begin(); itPath != m_paths.end(); itPath++)
+	{
+		BRepBndLib::Add(itPath->Edge(), occ_box);
+	}
+
+	return(occ_box);
+}
+
+
+/**
+	This method returns TRUE if the rhs path is completely inside this one.
+	We decide this by checking that the two paths don't have any intersecting points
+	and at least one of the rhs endpoints is 'inside' this path.
+ */
+bool CContour::ContiguousPath::IsInside( const CContour::ContiguousPath & rhs ) const
+{
+	BRepExtrema_DistShapeShape extrema( Wire(), rhs.Wire() );
+	if (extrema.IsDone())
+	{
+		for (Standard_Integer i=1; i<=extrema.NbSolution(); i++)
+		{
+			CNCPoint lhs_point = extrema.PointOnShape1(i);
+			CNCPoint rhs_point = extrema.PointOnShape2(i);
+
+			if (lhs_point == rhs_point)
+			{
+				// the rhs shape can't be inside this shape if they intersect.
+				return(false);
+			}
+		}
+	}
+
+	// The first test has passed.  They could be sitting next to each other.  Look at
+	// any point on the RHS shape and see if it's inside this shape.
+	return( IsInside( rhs.StartPoint() ) );
+}
+
+/**
+	This method returns TRUE if the point is inside this contiguous path.
+
+	NOTE: This method is only meaningful if the path is periodic (i.e. a closed shape).
+	If it's not periodic then FALSE is returned as a random option.
+ */
+bool CContour::ContiguousPath::IsInside(const CNCPoint point) const
+{
+	if (! Periodic()) return(false);	// This routine doesn't make sense for non-periodic paths.
+
+	Bnd_Box box = BoundingBox();
+
+	// Construct a line from this point to a little past the edge of the bounding box.  We then
+	// want to intersect this line with every path within this ContiguousPath object.  If we end up
+	// with an even number of intersections then the point is outside the ContiguousPath.  Otherwise
+	// it's inside it.
+
+	BRep_Builder aBuilder;
+	TopoDS_Vertex start, end;
+
+	CNCPoint adjusted_point(point);
+	adjusted_point.SetZ( StartPoint().Z() );
+
+	aBuilder.MakeVertex (start, adjusted_point, heeksCAD->GetTolerance());
+	start.Orientation (TopAbs_REVERSED);
+
+	Standard_Real aXmin, aYmin, aZmin, aXmax, aYmax, aZmax;
+	box.Get(aXmin, aYmin, aZmin, aXmax, aYmax, aZmax);
+
+	aBuilder.MakeVertex (end, gp_Pnt( aXmax, aYmax, StartPoint().Z() ), heeksCAD->GetTolerance());
+	end.Orientation (TopAbs_FORWARD);
+
+	BRepBuilderAPI_MakeEdge edge(start, end);
+	Path line(edge.Edge());
+
+	// Now accumulate all the intersection points.
+	std::list<CNCPoint> intersections;
+	for (std::vector<Path>::const_iterator itPath = m_paths.begin(); itPath != m_paths.end(); itPath++)
+	{
+		std::list<CNCPoint> ints = itPath->Intersect( line );
+		std::copy( ints.begin(), ints.end(), std::inserter( intersections, intersections.end() ) );
+	}
+
+	// Remove any duplicates that are already adjacent to each other.
+	intersections.unique();
+
+	if (intersections.size() == 0) return(false);
+	return((intersections.size() % 2) != 0);
+}
+
+/**
+	Return a list of distinct intersection points between this and the rhs path.
+ */
+std::list<CNCPoint> CContour::Path::Intersect( const CContour::Path & rhs ) const
+{
+	// Return all intersections points between this and the rhs path objects.
+	std::list<CNCPoint> intersections;
+
+	try
+	{
+		BRepExtrema_ExtCC extrema( Edge(), rhs.Edge() );
+		if ((extrema.IsDone()) && (! extrema.IsParallel()))
+		{
+			for (Standard_Integer i=1; i<=extrema.NbExt(); i++)
+			{
+				gp_Pnt lhs_point = extrema.PointOnE1(i);
+				gp_Pnt rhs_point = extrema.PointOnE2(i);
+				if (lhs_point.Distance(rhs_point) < Tolerance())
+				{
+					intersections.push_back( lhs_point );
+				}
+			}
+		}
+	}
+	catch (Standard_Failure & error) {
+        (void) error;	// Avoid the compiler warning.
+        Handle_Standard_Failure e = Standard_Failure::Caught();
+    } // End catch
+
+	return(intersections);
+}
+
+
+/**
+	Return a TopoDS_Wire that represents this contiguous path.
+ */
+TopoDS_Wire CContour::ContiguousPath::Wire() const
+{
+	BRepBuilderAPI_MakeWire wire_maker;
+	for (std::vector<Path>::const_iterator itPath = m_paths.begin(); itPath != m_paths.end(); itPath++)
+	{
+		wire_maker.Add( itPath->Edge() );
+	}
+
+	return(wire_maker.Wire());
+}
+
+
+/**
+	If the cross-product of the vectors at the path endpoints are all positive then the overall path
+	is counter-clockwise.
+ */
+bool CContour::ContiguousPath::IsClockwise()
+{
+	if (Periodic() == false)
+	{
+		// It's an 'open' shape.  Let the clockwise indicator be based on whether it's more north/south
+		// or more east/west.  If the endpoints are more south to north then we will call it clockwise.
+		// If it's more north to south then we will call it counter-clockwise.  This makes more sense of the
+		// values in the eSide enumeration.  eg: 'eLeftOrOutside' makes sense if we match a clockwise
+		// closed shape with a north to south open shape.
+
+		if (fabs(StartPoint().X() - EndPoint().X()) > fabs( StartPoint().Y() - EndPoint().Y() ))
+		{
+			// It's more east/west than north/south.  Figure out whether it's left to right or right to left.
+			if (StartPoint().X() < EndPoint().X())
+			{
+				// It's left to right.
+				return(false);	// counter-clockwise
+			}
+			else
+			{
+				// It's right to left.
+				return(true);
+			}
+		}
+		else
+		{
+			// It's more north/south.  Figure out whether it's bottom to top or top to bottom.
+			if (StartPoint().Y() < EndPoint().Y())
+			{
+				// It's bottom to top
+				return(false); // counter-clockwise
+			}
+			else
+			{
+				// It's top to bottom.
+				return(true);	// clockwise.
+			}
+		}
+	}
+
+	Standard_Real value = 0.0;
+
+	std::vector<Path>::iterator first_path = m_paths.begin();
+	std::vector<Path>::iterator lhs = first_path;
+	do
+	{
+		std::vector<Path>::iterator rhs = Next(lhs);
+
+		// Create a vector going from the lhs element pointing towards the endpoint as well
+		// as another vector going from the start of the rhs element going away from the starting point.
+
+		gp_Vec from( lhs->PointAt( lhs->Proportion(0.99) ), lhs->PointAt( lhs->Proportion(1.0) ) );
+		gp_Vec to( rhs->PointAt( rhs->Proportion(0.0) ), rhs->PointAt( rhs->Proportion(0.01) ) );
+
+		// Cross these vectors and look at the sign of the Z value to decide if these are clockwise
+		// or counter-clockwise
+		from.Cross(to);
+
+		value += from.Z();
+		lhs = Next(lhs);
+	} while (lhs != first_path);
+
+	return(value <= 0.0);
+}
+

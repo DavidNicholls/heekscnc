@@ -114,7 +114,7 @@ class Creator:
     ############################################################################
     ##  Tools
     
-    def tool_change(self, id):
+    def tool_change(self, id, description=None):
         """Change the tool"""
         pass
 
@@ -272,6 +272,10 @@ class Creator:
         """Profile routine"""
         pass
 
+    def boring(self, x=None, y=None, z=None, depth=None, standoff=None, dwell=None, retract_mode=None, spindle_mode=None, clearance_height=None):
+        """Boring routines"""
+        pass
+
     def drill(self, x=None, y=None, z=None, depth=None, standoff=None, dwell=None, peck_depth=None, retract_mode=None, spindle_mode=None, clearance_height=None):
         """Drilling routines"""
         pass
@@ -283,7 +287,7 @@ class Creator:
     # tap(x=10, y=10, z=0, tap_mode=0, depth=12.7, standoff=6.35, direction=0, pitch=1.25)
     # just add tap_mode & direction parameters
 
-    def tap(self, x=None, y=None, z=None, zretract=None, depth=None, standoff=None, dwell_bottom=None, pitch=None, stoppos=None, spin_in=None, spin_out=None, tap_mode=None, direction=None):
+    def tap(self, x=None, y=None, z=None, zretract=None, depth=None, standoff=None, dwell_bottom=None, pitch=None, stoppos=None, spin_in=None, spin_out=None, tap_mode=None, direction=None, clearance_height=None):
         """Tapping routines"""
         pass
 
@@ -323,6 +327,9 @@ class Creator:
     def probe_single_point(self, point_along_edge_x=None, point_along_edge_y=None, depth=None, retracted_point_x=None, retracted_point_y=None, destination_point_x=None, destination_point_y=None, intersection_variable_x=None, intersection_variable_y=None, probe_offset_x_component=None, probe_offset_y_component=None ):
         pass
 
+    def probe_grid(self, x_increment=None, x_count=None, y_increment=None, y_count=None, z_safety=None, z_probe=None, feed_rate=None, filename=None):
+        pass
+
     def probe_downward_point(self, depth=None, intersection_variable_z=None, touch_off_as_z=None, rapid_down_to_height=None):
 	pass
 
@@ -333,6 +340,9 @@ class Creator:
         pass
 
     def log_coordinate(self, x=None, y=None, z=None):
+        pass
+
+    def debug_message(self, message=None):
         pass
 
     def log_message(self, message=None):
@@ -470,8 +480,8 @@ def remove_temporary_origin():
 ############################################################################
 ##  Tools
 
-def tool_change(id):
-    creator.tool_change(id)
+def tool_change(id, description=None):
+    creator.tool_change(id, description)
 
 def predefined_position(type):
     creator.predefined_position(type)
@@ -612,12 +622,15 @@ def pocket():
 def profile():
     creator.profile()
 
+def boring(x=None, y=None, z=None, depth=None, standoff=None, dwell=None, retract_mode=None, spindle_mode=None, clearance_height=None):
+    creator.boring(x, y, z, depth, standoff, dwell, retract_mode, spindle_mode, clearance_height)
+
 def drill(x=None, y=None, z=None, depth=None, standoff=None, dwell=None, peck_depth=None, retract_mode=None, spindle_mode=None, clearance_height=None):
     creator.drill(x, y, z, depth, standoff, dwell, peck_depth, retract_mode, spindle_mode, clearance_height)
 
 
-def tap(x=None, y=None, z=None, zretract=None, depth=None, standoff=None, dwell_bottom=None, pitch=None, stoppos=None, spin_in=None, spin_out=None, tap_mode=None, direction=None):
-    creator.tap(x, y, z, zretract, depth, standoff, dwell_bottom, pitch, stoppos, spin_in, spin_out, tap_mode, direction)
+def tap(x=None, y=None, z=None, zretract=None, depth=None, standoff=None, dwell_bottom=None, pitch=None, stoppos=None, spin_in=None, spin_out=None, tap_mode=None, direction=None, clearance_height=None):
+    creator.tap(x, y, z, zretract, depth, standoff, dwell_bottom, pitch, stoppos, spin_in, spin_out, tap_mode, direction, clearance_height)
 
 def bore(x=None, y=None, z=None, zretract=None, depth=None, standoff=None, dwell_bottom=None, feed_in=None, feed_out=None, stoppos=None, shift_back=None, shift_right=None, backbore=False, stop=False):
     creator.bore(x, y, z, zretract, depth, standoff, dwell_Bottom, feed_in, feed_out, stoppos, shift_back, shift_right, backbore, stop)
@@ -655,6 +668,9 @@ def variable_set(id, value):
 def probe_single_point(point_along_edge_x=None, point_along_edge_y=None, depth=None, retracted_point_x=None, retracted_point_y=None, destination_point_x=None, destination_point_y=None, intersection_variable_x=None, intersection_variable_y=None, probe_offset_x_component=None, probe_offset_y_component=None ):
     creator.probe_single_point(point_along_edge_x, point_along_edge_y, depth, retracted_point_x, retracted_point_y, destination_point_x, destination_point_y, intersection_variable_x, intersection_variable_y, probe_offset_x_component, probe_offset_y_component )
 
+def probe_grid(x_increment=None, x_count=None, y_increment=None, y_count=None, z_safety=None, z_probe=None, feed_rate=None, filename=None):
+    creator.probe_grid(x_increment, x_count, y_increment, y_count, z_safety, z_probe, feed_rate, filename)
+
 def probe_downward_point(depth=None, intersection_variable_z=None, touch_off_as_z=None, rapid_down_to_height=None):
     creator.probe_downward_point(depth, intersection_variable_z, touch_off_as_z, rapid_down_to_height)
 
@@ -666,6 +682,9 @@ def open_log_file(xml_file_name=None ):
 
 def log_coordinate(x=None, y=None, z=None):
     creator.log_coordinate(x, y, z)
+
+def debug_message(message=None):
+    creator.debug_message(message)
 
 def log_message(message=None):
     creator.log_message(message)

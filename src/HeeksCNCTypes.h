@@ -41,5 +41,6 @@ enum{
 	WaterlineType,
 	RaftType,
 	TappingType,
+	BoringType,
 	HeeksCNCMaximumType
 };

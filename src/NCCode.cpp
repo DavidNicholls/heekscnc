@@ -134,18 +134,85 @@ void PathLine::glVertices(const PathObject* prev_po, CFixture *pFixture)
 	}
 }
 
-void PathArc::GetBox(CBox &box,const PathObject* prev_po)
+void PathArc::GetBox(CBox &box,const PathObject* prev_po, CFixture *pFixture)
 {
-	PathObject::GetBox(box,prev_po);
+	PathObject::GetBox(box,prev_po,pFixture);
+
+    if (pFixture != NULL)
+    {
+        CNCPoint point( pFixture->ReverseAdjustment( gp_Pnt(m_x[0], m_x[1], m_x[2]) ) );
+        double temp[3];
+        point.ToDoubleArray(temp);
+        box.Insert(temp);
+    }
+    else
+    {
+        box.Insert(m_x);
+    }
 
 	if(IsIncluded(gp_Pnt(0,1,0),prev_po))
-		box.Insert(prev_po->m_x[0]+m_c[0],prev_po->m_x[1]+m_c[1]+m_radius,0);
+	{
+	    if (pFixture)
+	    {
+            CNCPoint point(prev_po->m_x[0]+m_c[0],prev_po->m_x[1]+m_c[1]+m_radius,0);
+            point = pFixture->ReverseAdjustment( point );
+            double temp[3];
+            point.ToDoubleArray(temp);
+            box.Insert(temp);
+	    }
+	    else
+	    {
+	        box.Insert(prev_po->m_x[0]+m_c[0],prev_po->m_x[1]+m_c[1]+m_radius,0);
+	    }
+	}
+
 	if(IsIncluded(gp_Pnt(0,-1,0),prev_po))
-		box.Insert(prev_po->m_x[0]+m_c[0],prev_po->m_x[1]+m_c[1]-m_radius,0);
+    {
+        if (pFixture)
+	    {
+            CNCPoint point(prev_po->m_x[0]+m_c[0],prev_po->m_x[1]+m_c[1]-m_radius,0);
+            point = pFixture->ReverseAdjustment( point );
+            double temp[3];
+            point.ToDoubleArray(temp);
+            box.Insert(temp);
+	    }
+	    else
+	    {
+	        box.Insert(prev_po->m_x[0]+m_c[0],prev_po->m_x[1]+m_c[1]-m_radius,0);
+	    }
+    }
+
 	if(IsIncluded(gp_Pnt(1,0,0),prev_po))
-		box.Insert(prev_po->m_x[0]+m_c[0]+m_radius,prev_po->m_x[1]+m_c[1],0);
+	{
+	    if (pFixture)
+	    {
+            CNCPoint point(prev_po->m_x[0]+m_c[0]+m_radius,prev_po->m_x[1]+m_c[1],0);
+            point = pFixture->ReverseAdjustment( point );
+            double temp[3];
+            point.ToDoubleArray(temp);
+            box.Insert(temp);
+	    }
+	    else
+	    {
+	        box.Insert(prev_po->m_x[0]+m_c[0]+m_radius,prev_po->m_x[1]+m_c[1],0);
+	    }
+	}
+
 	if(IsIncluded(gp_Pnt(-1,0,0),prev_po))
-		box.Insert(prev_po->m_x[0]+m_c[0]-m_radius,prev_po->m_x[1]+m_c[1],0);
+	{
+	    if (pFixture)
+	    {
+            CNCPoint point(prev_po->m_x[0]+m_c[0]-m_radius,prev_po->m_x[1]+m_c[1],0);
+            point = pFixture->ReverseAdjustment( point );
+            double temp[3];
+            point.ToDoubleArray(temp);
+            box.Insert(temp);
+	    }
+	    else
+	    {
+	        box.Insert(prev_po->m_x[0]+m_c[0]-m_radius,prev_po->m_x[1]+m_c[1],0);
+	    }
+	}
 
 }
 
@@ -387,10 +454,12 @@ void ColouredPath::glCommands()
 
 void ColouredPath::GetBox(CBox &box)
 {
+    CFixture *pFixture = theApp.m_program->Fixtures()->Find(m_eCoordinateSystemNumber);
+
 	for(std::list< PathObject* >::iterator It = m_points.begin(); It != m_points.end(); It++)
 	{
 		PathObject* po= *It;
-		po->GetBox(box,CNCCode::prev_po);
+		po->GetBox(box,CNCCode::prev_po, pFixture);
 		CNCCode::prev_po = po;
 	}
 }
@@ -414,7 +483,7 @@ void ColouredPath::ReadFromXMLElement(TiXmlElement* element)
 {
 	// get the attributes
 	m_color_type = CNCCode::GetColor(element->Attribute("col"), ColorRapidType);
-	if (element->Attribute("fixture")) 
+	if (element->Attribute("fixture"))
 	{
 		m_eCoordinateSystemNumber = CFixture::eCoordinateSystemNumber_t(atoi(element->Attribute("fixture")));
 	}

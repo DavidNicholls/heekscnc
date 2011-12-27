@@ -65,7 +65,6 @@ CAttachOp & CAttachOp::operator= ( const CAttachOp & rhs )
 
 const wxBitmap &CAttachOp::GetIcon()
 {
-	if(!m_active)return GetInactiveIcon();
 	static wxBitmap* icon = NULL;
 	if(icon == NULL)icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/attach.png")));
 	return *icon;
@@ -318,7 +317,6 @@ bool CAttachOp::operator==( const CAttachOp & rhs ) const
 
 const wxBitmap &CUnattachOp::GetIcon()
 {
-	if(!m_active)return GetInactiveIcon();
 	static wxBitmap* icon = NULL;
 	if(icon == NULL)icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/unattach.png")));
 	return *icon;

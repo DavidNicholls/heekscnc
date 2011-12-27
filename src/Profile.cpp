@@ -368,7 +368,6 @@ CProfile & CProfile::operator= ( const CProfile & rhs )
 
 const wxBitmap &CProfile::GetIcon()
 {
-	if(!m_active)return GetInactiveIcon();
 	static wxBitmap* icon = NULL;
 	if(icon == NULL)icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/profile.png")));
 	return *icon;

@@ -19,12 +19,18 @@
 #include "interface/Tool.h"
 #include "CTool.h"
 #include "MachineState.h"
+#include "Boring.h"
 
 CSpeedOpParams::CSpeedOpParams()
 {
 	m_horizontal_feed_rate = 0.0;
 	m_vertical_feed_rate = 0.0;
 	m_spindle_speed = 0.0;
+}
+
+/* virtual */ void CSpeedOp::ResetFeeds(const int tool_number)
+{
+	m_speed_op_params.ResetFeeds(tool_number);
 }
 
 void CSpeedOpParams::ResetFeeds(const int tool_number)
@@ -64,7 +70,7 @@ void CSpeedOpParams::ResetFeeds(const int tool_number)
 					// the magic '3000' value to find out what proportion of the 'rule of thumb'
 					// we're using.
 
-				        double proportion = fabs(m_spindle_speed) / 3000.0;
+				        double proportion = fabs(m_spindle_speed) / theApp.m_drilling_reference_speed;
 					double drill_diameter_in_inches = pTool->m_params.m_diameter / 25.4;
 					double feed_rate_inches_per_minute = 100.0 * drill_diameter_in_inches * proportion;
 					m_vertical_feed_rate = feed_rate_inches_per_minute * 25.4;	// mm per minute
@@ -95,6 +101,11 @@ void CSpeedOpParams::ResetFeeds(const int tool_number)
 							m_horizontal_feed_rate = 0.0;	// We're going straight down with a drill bit.
 							break;
 
+						case CToolParams::eBoringHead:
+							m_vertical_feed_rate = feed_rate_mm_per_minute;
+							m_horizontal_feed_rate = 0.0;	// We're going straight down with a boring head.
+							break;
+
 						case CToolParams::eChamfer:
 						case CToolParams::eTurningTool:
 							// Spread it across both horizontal and vertical
@@ -115,13 +126,17 @@ void CSpeedOpParams::ResetFeeds(const int tool_number)
 	} // End if - then
 } // End ResetFeeds() method
 
-void CSpeedOpParams::ResetSpeeds(const int tool_number)
+/* virtual */ void CSpeedOp::ResetSpeeds(const int tool_number, const double bored_hole_diameter)
+{
+	m_speed_op_params.ResetSpeeds(tool_number, bored_hole_diameter);
+}
+
+void CSpeedOpParams::ResetSpeeds(const int tool_number, const double bored_hole_diameter)
 {
 	if ((theApp.m_program) &&
 	    (theApp.m_program->SpeedReferences()) &&
 	    (theApp.m_program->SpeedReferences()->m_estimate_when_possible))
 	{
-
 		// Use the 'feeds and speeds' class along with the tool properties to
 		// help set some logical values for the spindle speed.
 
@@ -135,11 +150,22 @@ void CSpeedOpParams::ResetSpeeds(const int tool_number)
 										hardness );
 			if (surface_speed > 0)
 			{
-                if (pTool->m_params.m_diameter > 0)
-                {
-                    m_spindle_speed = (surface_speed * 1000.0) / (PI * pTool->m_params.m_diameter);
-                    m_spindle_speed = floor(m_spindle_speed);	// Round down to integer
-                } // End if - then
+				if (pTool->m_params.m_type == CToolParams::eBoringHead)
+				{
+					// We're boring a hole so the diameter of the tool is less important than
+					// the diameter of the hole we're boring with it.
+
+					m_spindle_speed = (surface_speed * 1000.0) / (PI * bored_hole_diameter);
+					m_spindle_speed = floor(m_spindle_speed);	// Round down to integer
+				}
+				else
+				{
+					if (pTool->m_params.m_diameter > 0)
+					{
+						m_spindle_speed = (surface_speed * 1000.0) / (PI * pTool->m_params.m_diameter);
+						m_spindle_speed = floor(m_spindle_speed);	// Round down to integer
+					} // End if - then
+				}
 			} // End if - then
 
             if (pTool->m_params.m_type == CToolParams::eTapTool)
@@ -183,8 +209,16 @@ static void on_set_spindle_speed(double value, HeeksObj* object)
 
 void CSpeedOpParams::GetProperties(CSpeedOp* parent, std::list<Property *> *list)
 {
-	list->push_back(new PropertyLength(_("horizontal feed rate"), m_horizontal_feed_rate, parent, on_set_horizontal_feed_rate));
-	list->push_back(new PropertyLength(_("vertical feed rate"), m_vertical_feed_rate, parent, on_set_vertical_feed_rate));
+	if (parent->IncludeHorozontalFeedRate())
+	{
+		list->push_back(new PropertyLength(_("horizontal feed rate"), m_horizontal_feed_rate, parent, on_set_horizontal_feed_rate));
+	}
+
+	if (parent->IncludeVerticalFeedRate())
+	{
+		list->push_back(new PropertyLength(_("vertical feed rate"), m_vertical_feed_rate, parent, on_set_vertical_feed_rate));
+	}
+
 	list->push_back(new PropertyDouble(_("spindle speed"), m_spindle_speed, parent, on_set_spindle_speed));
 }
 
@@ -269,7 +303,7 @@ void CSpeedOp::ReadDefaultValues()
 
 	if(m_auto_set_speeds_feeds)
 	{
-		m_speed_op_params.ResetSpeeds(m_tool_number);	// NOTE: The speed MUST be set BEFORE the feedrates
+		m_speed_op_params.ResetSpeeds(m_tool_number, 0.0);	// NOTE: The speed MUST be set BEFORE the feedrates
 		m_speed_op_params.ResetFeeds(m_tool_number);
 	}
 }
@@ -332,8 +366,15 @@ public:
 	const wxChar* GetTitle(){return _("Reset Feeds and Speeds");}
 	void Run()
 	{
-     	m_pThis->m_speed_op_params.ResetSpeeds( m_pThis->m_tool_number);	// NOTE: The speed MUST be set BEFORE the feedrates
-		m_pThis->m_speed_op_params.ResetFeeds( m_pThis->m_tool_number);
+		double diameter = 0.0;
+		CBoring *pBoring = dynamic_cast<CBoring *>(m_pThis);
+		if (pBoring != NULL)
+		{
+			diameter = pBoring->m_params.m_diameter;
+		}
+
+     	m_pThis->ResetSpeeds( m_pThis->m_tool_number, diameter);	// NOTE: The speed MUST be set BEFORE the feedrates
+		m_pThis->ResetFeeds( m_pThis->m_tool_number);
 	}
 	wxString BitmapPath(){ return _T("import");}
 	wxString previous_path;

@@ -58,8 +58,6 @@ CFixtureParams & CFixtureParams::operator= ( const CFixtureParams & rhs )
 		m_xy_plane = rhs.m_xy_plane;
 
 		m_pivot_point = rhs.m_pivot_point;
-		m_safety_height_defined = rhs.m_safety_height_defined;
-		m_safety_height = rhs.m_safety_height;
 		m_clearance_height = rhs.m_clearance_height;
 		m_touch_off_point_defined = rhs.m_touch_off_point_defined;
 		m_touch_off_point = rhs.m_touch_off_point;
@@ -80,7 +78,7 @@ CFixtureParams::CFixtureParams( const CFixtureParams & rhs )
 
 
 
-void CFixtureParams::set_initial_values(const bool safety_height_defined, const double safety_height)
+void CFixtureParams::set_initial_values()
 {
 	CNCConfig config(ConfigScope());
 
@@ -95,8 +93,6 @@ void CFixtureParams::set_initial_values(const bool safety_height_defined, const 
 
 	m_pivot_point = gp_Pnt( pivot_point_x, pivot_point_y, pivot_point_z );
 
-	m_safety_height_defined = safety_height_defined;
-	m_safety_height = safety_height;
 	config.Read(_T("clearance_height"), &m_clearance_height, 100.0);
 
 	config.Read(_T("touch_off_point_defined"), &m_touch_off_point_defined, false);
@@ -124,8 +120,6 @@ void CFixtureParams::write_values_to_config()
 	config.Write(_T("pivot_point_y"), m_pivot_point.Y());
 	config.Write(_T("pivot_point_z"), m_pivot_point.Z());
 
-	config.Write(_T("safety_height_defined"), m_safety_height_defined);
-	config.Write(_T("safety_height"), m_safety_height);
 	config.Write(_T("clearance_height"), m_clearance_height);
 
 	config.Write(_T("touch_off_point_defined"), m_touch_off_point_defined);
@@ -177,18 +171,6 @@ static void on_set_touch_off_description(const wxChar *value, HeeksObj* object){
 	((CFixture *)object)->m_params.m_touch_off_description = value;
 }
 
-static void on_set_safety_height_defined(const bool value, HeeksObj *object)
-{
-    ((CFixture *)object)->m_params.m_safety_height_defined = value;
-    heeksCAD->Changed();
-}
-
-static void on_set_safety_height(const double value, HeeksObj *object)
-{
-    ((CFixture *)object)->m_params.m_safety_height = value;
-    heeksCAD->Changed();
-}
-
 static void on_set_clearance_height(const double value, HeeksObj *object)
 {
     ((CFixture *)object)->m_params.m_clearance_height = value;
@@ -207,13 +189,6 @@ void CFixtureParams::GetProperties(CFixture* parent, std::list<Property *> *list
 	pivot_point[2] = m_pivot_point.Z();
 
 	list->push_back(new PropertyVertex(_("Pivot Point"), pivot_point, parent, on_set_pivot_point));
-
-    list->push_back(new PropertyCheck(_("Safety Height Defined"), m_safety_height_defined, parent, on_set_safety_height_defined));
-
-    if (m_safety_height_defined)
-    {
-        list->push_back(new PropertyLength(_("Safety Height for inter-fixture movements (in G53 - Machine - coordinates)"), m_safety_height, parent, on_set_safety_height));
-    }
 
 	list->push_back(new PropertyLength(_("Clearance Height for inter-operation movements(in local (G54, G55 etc.) coordinates)"), m_clearance_height, parent, on_set_clearance_height));
 
@@ -247,8 +222,6 @@ void CFixtureParams::WriteXMLAttributes(TiXmlNode *root)
 	element->SetDoubleAttribute( "pivot_point_y", m_pivot_point.Y());
 	element->SetDoubleAttribute( "pivot_point_z", m_pivot_point.Z());
 
-	element->SetAttribute( "safety_height_defined", m_safety_height_defined);
-	element->SetDoubleAttribute( "safety_height", m_safety_height);
 	element->SetDoubleAttribute( "clearance_height", m_clearance_height);
 
 	element->SetAttribute( "touch_off_point_defined", m_touch_off_point_defined);
@@ -261,7 +234,7 @@ void CFixtureParams::WriteXMLAttributes(TiXmlNode *root)
 
 void CFixtureParams::ReadParametersFromXMLElement(TiXmlElement* pElem)
 {
-	set_initial_values(false, 0.0);
+	set_initial_values();
 
 	if (pElem->Attribute("yz_plane")) pElem->Attribute("yz_plane", &m_yz_plane);
 	if (pElem->Attribute("xz_plane")) pElem->Attribute("xz_plane", &m_xz_plane);
@@ -271,17 +244,9 @@ void CFixtureParams::ReadParametersFromXMLElement(TiXmlElement* pElem)
 	if (pElem->Attribute("pivot_point_y")) { double value; pElem->Attribute("pivot_point_y", &value); m_pivot_point.SetY( value ); }
 	if (pElem->Attribute("pivot_point_z")) { double value; pElem->Attribute("pivot_point_z", &value); m_pivot_point.SetZ( value ); }
 
-	int flag = 0;
-	if (pElem->Attribute("safety_height_defined"))
-	{
-	    pElem->Attribute("safety_height_defined", &flag);
-        m_safety_height_defined = (flag != 0);
-	}
-
-	if (pElem->Attribute("safety_height")) pElem->Attribute("safety_height", &m_safety_height);
 	if (pElem->Attribute("clearance_height")) pElem->Attribute("clearance_height", &m_clearance_height);
 
-	flag = 0;
+	int flag = 0;
 	if (pElem->Attribute("touch_off_point_defined"))
 	{
 	    pElem->Attribute("touch_off_point_defined", &flag);
@@ -299,7 +264,83 @@ void CFixtureParams::ReadParametersFromXMLElement(TiXmlElement* pElem)
 const wxBitmap &CFixture::GetIcon()
 {
 	static wxBitmap* icon = NULL;
-	if(icon == NULL)icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/fixture.png")));
+	static eCoordinateSystemNumber_t icon_coordinate_system = G59_1;
+
+	if (icon_coordinate_system != m_coordinate_system_number)
+	{
+	    // The coordinate system has changed.  Force a new icon construction.
+	    delete icon;
+	    icon = NULL;
+	}
+
+	switch (m_coordinate_system_number)
+	{
+	    case G54:
+	    {
+	        if(icon == NULL)
+	        {
+	            icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/g54.png")));
+	            icon_coordinate_system = m_coordinate_system_number;
+	        }
+            return *icon;
+	    }
+
+	    case G55:
+	    {
+	        if(icon == NULL)
+	        {
+	            icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/g55.png")));
+	            icon_coordinate_system = m_coordinate_system_number;
+	        }
+            return *icon;
+	    }
+
+	    case G56:
+	    {
+	        if(icon == NULL)
+	        {
+	            icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/g56.png")));
+	            icon_coordinate_system = m_coordinate_system_number;
+	        }
+            return *icon;
+	    }
+
+	    case G57:
+	    {
+	        if(icon == NULL)
+	        {
+	            icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/g57.png")));
+	            icon_coordinate_system = m_coordinate_system_number;
+	        }
+            return *icon;
+	    }
+
+	    case G58:
+	    {
+	        if(icon == NULL)
+	        {
+	            icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/g58.png")));
+	            icon_coordinate_system = m_coordinate_system_number;
+	        }
+            return *icon;
+	    }
+
+	    case G59:
+	    {
+	        if(icon == NULL)
+	        {
+	            icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/g59.png")));
+	            icon_coordinate_system = m_coordinate_system_number;
+	        }
+            return *icon;
+	    }
+	}
+
+	if(icon == NULL)
+	{
+	    icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/fixture.png")));
+	    icon_coordinate_system = m_coordinate_system_number;
+	}
 	return *icon;
 }
 
@@ -463,7 +504,7 @@ HeeksObj* CFixture::ReadFromXMLElement(TiXmlElement* element)
 	if (element->Attribute("title"))
 	{
 		wxString title(Ctt(element->Attribute("title")));
-		CFixture* new_object = new CFixture( title.c_str(), CFixture::eCoordinateSystemNumber_t(coordinate_system_number), false, 0.0);
+		CFixture* new_object = new CFixture( title.c_str(), CFixture::eCoordinateSystemNumber_t(coordinate_system_number));
 
 		for(TiXmlElement* pElem = heeksCAD->FirstXMLChildElement( element ) ; pElem; pElem = pElem->NextSiblingElement())
 		{
@@ -1158,8 +1199,6 @@ bool CFixtureParams::operator== ( const CFixtureParams & rhs ) const
 	if (m_xz_plane != rhs.m_xz_plane) return(false);
 	if (m_xy_plane != rhs.m_xy_plane) return(false);
 	if (CNCPoint(m_pivot_point) != CNCPoint(rhs.m_pivot_point)) return(false);
-	if (m_safety_height_defined != rhs.m_safety_height_defined) return(false);
-	if (m_safety_height != rhs.m_safety_height) return(false);
 	if (m_clearance_height != rhs.m_clearance_height) return(false);
 	if (m_touch_off_point_defined != rhs.m_touch_off_point_defined) return(false);
 	if (CNCPoint(m_touch_off_point) != CNCPoint(rhs.m_touch_off_point)) return(false);

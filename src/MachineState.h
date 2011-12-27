@@ -46,7 +46,7 @@ private:
    class Instance
     {
     public:
-        Instance() : m_fixture(NULL, CFixture::G54, false, 0.0) { }
+        Instance() : m_fixture(NULL, CFixture::G54) { }
         ~Instance() { }
         Instance & operator= ( const Instance & rhs );
         Instance( const Instance & rhs );

@@ -28,9 +28,6 @@ public:
 	double m_xy_plane;	// i.e. rotation angle around z axis - in degrees
 
 	gp_Pnt m_pivot_point;	// Fixture's pivot point for rotation.
-
-	bool m_safety_height_defined;
-	double m_safety_height;	// defined in G53 (machine) coordinates for inter-fixture movements.
 	double m_clearance_height; // defined in local coordinates (G54 etc.) for inter-operation movements.
 
 	bool m_touch_off_point_defined;	// Is the m_touch_off_point valid?
@@ -51,9 +48,6 @@ public:
 
 		m_pivot_point = gp_Pnt( 0.0, 0.0, 0.0 );
 
-		m_safety_height_defined = false;
-		m_safety_height = 0.0;
-
 		m_touch_off_point = gp_Pnt(0.0, 0.0, 0.0);
 		m_touch_off_description = _T("");
 	} // End constructor.
@@ -61,7 +55,7 @@ public:
 	CFixtureParams & operator= ( const CFixtureParams & rhs );
 	CFixtureParams( const CFixtureParams & rhs );
 
-	void set_initial_values(const bool safety_height_defined, const double safety_height);
+	void set_initial_values();
 	void write_values_to_config();
 	void GetProperties(CFixture* parent, std::list<Property *> *list);
 	void WriteXMLAttributes(TiXmlNode* pElem);
@@ -174,13 +168,11 @@ public:
 
 	//	Constructors.
 	CFixture(const wxChar *title,
-			const eCoordinateSystemNumber_t coordinate_system_number,
-			const bool safety_height_defined,
-			const double safety_height )
+			const eCoordinateSystemNumber_t coordinate_system_number )
 				: m_coordinate_system_number(coordinate_system_number)
 	{
 		m_title = _T("");
-		m_params.set_initial_values(safety_height_defined, safety_height);
+		m_params.set_initial_values();
 		if (title != NULL)
 		{
 			m_title.assign(title);

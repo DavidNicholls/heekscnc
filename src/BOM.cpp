@@ -391,7 +391,7 @@ void CBOM::Pack(double bin_width, double height, int gap)
 
 void CBOM::Regurgitate()
 {
-//Options
+    //Options
 	// bool remove_tool_changes = true;
 	// bool remove_unknown_nc_codes = true;
 

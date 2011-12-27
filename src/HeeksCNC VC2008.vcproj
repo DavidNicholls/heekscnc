@@ -122,7 +122,7 @@
 				InlineFunctionExpansion="1"
 				EnableIntrinsicFunctions="false"
 				WholeProgramOptimization="false"
-				AdditionalIncludeDirectories="&quot;$(CASROOT)\inc&quot;;&quot;$(WXWIN)\include&quot;;&quot;$(WXWIN)\include\msvc&quot;;&quot;$(HEEKSCADPATH)&quot;;../kurve/geometry;../kurve/messages;./"
+				AdditionalIncludeDirectories="&quot;$(CASROOT)\inc&quot;;&quot;$(WXWIN)\include&quot;;&quot;$(WXWIN)\include\msvc&quot;;&quot;$(HEEKSCAD)&quot;;../kurve/geometry;../kurve/messages;./"
 				PreprocessorDefinitions="WIN32;__WXMSW__;_WINDOWS;NOPCH;WNT;_CRT_SECURE_NO_WARNINGS;WXUSINGDLL;_CRT_SECURE_NO_DEPRECATE;_SECURE_SCL=0;_SECURE_ATL =0;HEEKSCNC;HEEKSPLUGIN;OPEN_SOURCE_GEOMETRY;OP_SKETCHES_AS_CHILDREN"
 				StringPooling="true"
 				RuntimeLibrary="2"
@@ -366,7 +366,19 @@
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\Box.h"
+			RelativePath=".\Boring.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\Boring.h"
+			>
+		</File>
+		<File
+			RelativePath="$(HEEKSCADPATH)\interface\Box.h"
+			>
+		</File>
+		<File
+			RelativePath=".\CDouble.h"
 			>
 		</File>
 		<File
@@ -478,19 +490,19 @@
 			>
 		</File>
 		<File
-			RelativePath="..\..\src\Geom.cpp"
+			RelativePath="$(HEEKSCADPATH)\src\Geom.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\HDialogs.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\HDialogs.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\HDialogs.h"
+			RelativePath="$(HEEKSCADPATH)\interface\HDialogs.h"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\HeeksCADInterface.h"
+			RelativePath="$(HEEKSCADPATH)\interface\HeeksCADInterface.h"
 			>
 		</File>
 		<File
@@ -514,19 +526,19 @@
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\HeeksColor.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\HeeksColor.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\HeeksColor.h"
+			RelativePath="$(HEEKSCADPATH)\interface\HeeksColor.h"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\HeeksObj.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\HeeksObj.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\HeeksObj.h"
+			RelativePath="$(HEEKSCADPATH)\interface\HeeksObj.h"
 			>
 		</File>
 		<File
@@ -538,7 +550,7 @@
 			>
 		</File>
 		<File
-			RelativePath="..\..\HeeksCAD\interface\InputMode.h"
+			RelativePath="$(HEEKSCADPATH)\HeeksCAD\interface\InputMode.h"
 			>
 		</File>
 		<File
@@ -550,11 +562,11 @@
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\LeftAndRight.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\LeftAndRight.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\LeftAndRight.h"
+			RelativePath="$(HEEKSCADPATH)\interface\LeftAndRight.h"
 			>
 		</File>
 		<File
@@ -578,11 +590,11 @@
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\MarkedObject.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\MarkedObject.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\MarkedObject.h"
+			RelativePath="$(HEEKSCADPATH)\interface\MarkedObject.h"
 			>
 		</File>
 		<File
@@ -594,23 +606,23 @@
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\NiceTextCtrl.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\NiceTextCtrl.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\NiceTextCtrl.h"
+			RelativePath="$(HEEKSCADPATH)\interface\NiceTextCtrl.h"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\ObjectCanvas.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\ObjectCanvas.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\ObjList.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\ObjList.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\ObjList.h"
+			RelativePath="$(HEEKSCADPATH)\interface\ObjList.h"
 			>
 		</File>
 		<File
@@ -694,7 +706,7 @@
 				>
 				<Tool
 					Name="VCCustomBuildTool"
-					CommandLine="..\bin\byacc -d &quot;$(InputFile)&quot;"
+					CommandLine="..\bin\byacc -d parser.y&#x0D;&#x0A;"
 					Outputs="y.tab.c;y.tab.h"
 				/>
 			</FileConfiguration>
@@ -718,11 +730,11 @@
 			</FileConfiguration>
 		</File>
 		<File
-			RelativePath="..\..\interface\PictureFrame.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\PictureFrame.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PictureFrame.h"
+			RelativePath="$(HEEKSCADPATH)\interface\PictureFrame.h"
 			>
 		</File>
 		<File
@@ -782,31 +794,31 @@
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\Property.h"
+			RelativePath="$(HEEKSCADPATH)\interface\Property.h"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyCheck.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyCheck.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyCheck.h"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyCheck.h"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyChoice.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyChoice.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyChoice.h"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyChoice.h"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyColor.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyColor.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyColor.h"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyColor.h"
 			>
 		</File>
 		<File
@@ -818,59 +830,59 @@
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyDouble.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyDouble.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyDouble.h"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyDouble.h"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyFile.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyFile.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyFile.h"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyFile.h"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyInt.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyInt.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyInt.h"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyInt.h"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyLength.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyLength.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyLength.h"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyLength.h"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyList.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyList.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyList.h"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyList.h"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyString.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyString.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyString.h"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyString.h"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyVertex.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyVertex.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\PropertyVertex.h"
+			RelativePath="$(HEEKSCADPATH)\interface\PropertyVertex.h"
 			>
 		</File>
 		<File
@@ -978,7 +990,7 @@
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\strconv.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\strconv.cpp"
 			>
 			<FileConfiguration
 				Name="Debug|Win32"
@@ -1014,7 +1026,7 @@
 			</FileConfiguration>
 		</File>
 		<File
-			RelativePath="..\..\interface\strconv.h"
+			RelativePath="$(HEEKSCADPATH)\interface\strconv.h"
 			>
 		</File>
 		<File
@@ -1042,7 +1054,7 @@
 			>
 		</File>
 		<File
-			RelativePath="..\..\tinyxml\tinystr.cpp"
+			RelativePath="$(HEEKSCADPATH)\tinyxml\tinystr.cpp"
 			>
 			<FileConfiguration
 				Name="Debug|Win32"
@@ -1078,51 +1090,11 @@
 			</FileConfiguration>
 		</File>
 		<File
-			RelativePath="..\..\tinyxml\tinystr.h"
+			RelativePath="$(HEEKSCADPATH)\tinyxml\tinystr.h"
 			>
 		</File>
 		<File
-			RelativePath="..\..\tinyxml\tinyxml.cpp"
-			>
-			<FileConfiguration
-				Name="Debug|Win32"
-				>
-				<Tool
-					Name="VCCLCompilerTool"
-					UsePrecompiledHeader="0"
-				/>
-			</FileConfiguration>
-			<FileConfiguration
-				Name="Release|Win32"
-				>
-				<Tool
-					Name="VCCLCompilerTool"
-					UsePrecompiledHeader="0"
-				/>
-			</FileConfiguration>
-			<FileConfiguration
-				Name="Unicode Debug|Win32"
-				>
-				<Tool
-					Name="VCCLCompilerTool"
-					UsePrecompiledHeader="0"
-				/>
-			</FileConfiguration>
-			<FileConfiguration
-				Name="Unicode Release|Win32"
-				>
-				<Tool
-					Name="VCCLCompilerTool"
-					UsePrecompiledHeader="0"
-				/>
-			</FileConfiguration>
-		</File>
-		<File
-			RelativePath="..\..\tinyxml\tinyxml.h"
-			>
-		</File>
-		<File
-			RelativePath="..\..\tinyxml\tinyxmlerror.cpp"
+			RelativePath="$(HEEKSCADPATH)\tinyxml\tinyxml.cpp"
 			>
 			<FileConfiguration
 				Name="Debug|Win32"
@@ -1158,7 +1130,11 @@
 			</FileConfiguration>
 		</File>
 		<File
-			RelativePath="..\..\tinyxml\tinyxmlparser.cpp"
+			RelativePath="$(HEEKSCADPATH)\tinyxml\tinyxml.h"
+			>
+		</File>
+		<File
+			RelativePath="$(HEEKSCADPATH)\tinyxml\tinyxmlerror.cpp"
 			>
 			<FileConfiguration
 				Name="Debug|Win32"
@@ -1194,15 +1170,51 @@
 			</FileConfiguration>
 		</File>
 		<File
-			RelativePath="..\..\interface\Tool.h"
+			RelativePath="$(HEEKSCADPATH)\tinyxml\tinyxmlparser.cpp"
+			>
+			<FileConfiguration
+				Name="Debug|Win32"
+				>
+				<Tool
+					Name="VCCLCompilerTool"
+					UsePrecompiledHeader="0"
+				/>
+			</FileConfiguration>
+			<FileConfiguration
+				Name="Release|Win32"
+				>
+				<Tool
+					Name="VCCLCompilerTool"
+					UsePrecompiledHeader="0"
+				/>
+			</FileConfiguration>
+			<FileConfiguration
+				Name="Unicode Debug|Win32"
+				>
+				<Tool
+					Name="VCCLCompilerTool"
+					UsePrecompiledHeader="0"
+				/>
+			</FileConfiguration>
+			<FileConfiguration
+				Name="Unicode Release|Win32"
+				>
+				<Tool
+					Name="VCCLCompilerTool"
+					UsePrecompiledHeader="0"
+				/>
+			</FileConfiguration>
+		</File>
+		<File
+			RelativePath="$(HEEKSCADPATH)\interface\Tool.h"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\ToolImage.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\ToolImage.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\ToolImage.h"
+			RelativePath="$(HEEKSCADPATH)\interface\ToolImage.h"
 			>
 		</File>
 		<File
@@ -1214,11 +1226,11 @@
 			>
 		</File>
 		<File
-			RelativePath="..\..\\interface\TransientObject.cpp"
+			RelativePath="$(HEEKSCADPATH)\interface\TransientObject.cpp"
 			>
 		</File>
 		<File
-			RelativePath="..\..\interface\TransientObject.h"
+			RelativePath="$(HEEKSCADPATH)\interface\TransientObject.h"
 			>
 		</File>
 		<File

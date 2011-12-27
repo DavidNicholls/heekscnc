@@ -163,6 +163,7 @@ int	Sqrt(const int symbol_id);
 %token <integer>		G83
 %token <integer>		G84
 %token <integer>		G85
+%token <integer>		G86
 %token <integer>		G89
 %token <integer>		G90
 %token <integer>		G91
@@ -355,8 +356,9 @@ Motion:					G00   Arguments	{ pParseState->statement_type = stRapid; }
 	|					G82   Arguments { pParseState->statement_type = stDrilling; }
 	|					G83   Arguments { pParseState->statement_type = stDrilling; }
 	|					G84   Arguments { pParseState->statement_type = stTapping; }
-	|					G85   Arguments { pParseState->statement_type = stDrilling; }
-	|					G89   Arguments { }
+	|					G85   Arguments { pParseState->statement_type = stBoring; }
+	|					G86   Arguments { pParseState->statement_type = stBoring; }
+	|					G89   Arguments { pParseState->statement_type = stBoring; }
 	;
 
 NonModalCodes:

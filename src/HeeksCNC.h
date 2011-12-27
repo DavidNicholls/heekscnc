@@ -35,6 +35,7 @@ public:
 	bool m_use_Clipper_not_Boolean;
 	bool m_use_DOS_not_Unix;
 	wxString m_startup_files_directory;
+	double m_drilling_reference_speed;
 
 	CHeeksCNCApp();
 	~CHeeksCNCApp();

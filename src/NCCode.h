@@ -16,6 +16,7 @@
 #include "HeeksCNCTypes.h"
 #include "CTool.h"
 #include "Fixture.h"
+#include "CNCPoint.h"
 
 #include <TopoDS_Shape.hxx>
 #include <gp_Pnt.hxx>
@@ -62,7 +63,20 @@ public:
 	int m_tool_number;
 	PathObject(){m_x[0] = m_x[1] = m_x[2] = 0.0; }
 	virtual int GetType() = 0; // 0 - line, 1 - arc
-	virtual void GetBox(CBox &box,const PathObject* prev_po){box.Insert(m_x);}
+	virtual void GetBox(CBox &box,const PathObject* prev_po, CFixture *pFixture)
+	{
+	    if (pFixture != NULL)
+	    {
+	        CNCPoint point( pFixture->ReverseAdjustment( gp_Pnt(m_x[0], m_x[1], m_x[2]) ) );
+	        double temp[3];
+	        point.ToDoubleArray(temp);
+	        box.Insert(temp);
+	    }
+	    else
+	    {
+            box.Insert(m_x);
+	    }
+    }
 
 	void WriteBaseXML(TiXmlElement *element);
 
@@ -102,7 +116,7 @@ public:
 
 	PathObject *MakeACopy(void)const{return new PathArc(*this);}
 
-	void GetBox(CBox &box,const PathObject* prev_po);
+	void GetBox(CBox &box,const PathObject* prev_po, CFixture *pFixture);
 	bool IsIncluded(gp_Pnt pnt,const PathObject* prev_po);
 
 	std::list<gp_Pnt> Interpolate( const PathObject *previous_object,

@@ -23,6 +23,8 @@
 #include "MachineState.h"
 #include "Program.h"
 #include "Fixtures.h"
+#include "Contour.h"
+#include "CDouble.h"
 
 #include <sstream>
 #include <algorithm>
@@ -33,9 +35,13 @@ extern CHeeksCADInterface* heeksCAD;
 
 void CCounterBoreParams::set_initial_values( const int tool_number )
 {
+	m_finishing_pass = 0.005 * 25.4;
+
 	CNCConfig config(ConfigScope());
 
 	config.Read(_T("m_diameter"), &m_diameter, (25.4 / 10));	// One tenth of an inch
+	config.Read(_T("m_finishing_pass"), &m_finishing_pass, 0.005 * 25.4);	// Five thousands of an inch
+
 	config.Read(_T("m_sort_locations"), &m_sort_locations, 1);
 
 	if (tool_number > 0)
@@ -55,17 +61,34 @@ void CCounterBoreParams::write_values_to_config()
 
 	CNCConfig config(ConfigScope());
 	config.Write(_T("m_diameter"), m_diameter);
+	config.Write(_T("m_finishing_pass"), m_finishing_pass);
 	config.Write(_T("m_sort_locations"), m_sort_locations);
 }
 
 
-static void on_set_diameter(double value, HeeksObj*  object){((CCounterBore*)object)->m_params.m_diameter = value;}
-static void on_set_sort_locations(int value, HeeksObj*  object){((CCounterBore*)object)->m_params.m_sort_locations = value;}
+static void on_set_diameter(double value, HeeksObj*  object)
+{
+	((CCounterBore*)object)->m_params.m_diameter = value;
+	((CCounterBore*)object)->m_params.write_values_to_config();
+}
+
+static void on_set_finishing_pass(double value, HeeksObj*  object)
+{
+	((CCounterBore*)object)->m_params.m_finishing_pass = value;
+	((CCounterBore*)object)->m_params.write_values_to_config();
+}
+
+static void on_set_sort_locations(int value, HeeksObj*  object)
+{
+	((CCounterBore*)object)->m_params.m_sort_locations = value;
+	((CCounterBore*)object)->m_params.write_values_to_config();
+}
 
 
 void CCounterBoreParams::GetProperties(CCounterBore* parent, std::list<Property *> *list)
 {
 	list->push_back(new PropertyLength(_("diameter"), m_diameter, parent, on_set_diameter));
+	list->push_back(new PropertyLength(_("finishing pass"), m_finishing_pass, parent, on_set_finishing_pass));
 
 	{ // Begin choice scope
 		std::list< wxString > choices;
@@ -84,12 +107,14 @@ void CCounterBoreParams::WriteXMLAttributes(TiXmlNode *root)
 	element = heeksCAD->NewXMLElement( "params" );
 	heeksCAD->LinkXMLEndChild( root,  element );
 	element->SetDoubleAttribute( "diameter", m_diameter);
+	element->SetDoubleAttribute( "finishing_pass", m_finishing_pass);
 	element->SetAttribute( "sort_locations", m_sort_locations);
 }
 
 void CCounterBoreParams::ReadParametersFromXMLElement(TiXmlElement* pElem)
 {
 	if (pElem->Attribute("diameter")) pElem->Attribute("diameter", &m_diameter);
+	if (pElem->Attribute("finishing_pass")) pElem->Attribute("finishing_pass", &m_finishing_pass);
 	if (pElem->Attribute("sort_locations")) pElem->Attribute("sort_locations", &m_sort_locations);
 }
 
@@ -101,18 +126,179 @@ static double drawing_units( const double value )
 
 const wxBitmap &CCounterBore::GetIcon()
 {
-	if(!m_active)return GetInactiveIcon();
 	static wxBitmap* icon = NULL;
 	if(icon == NULL)icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/drilling.png")));
 	return *icon;
 }
+
+
+Python CCounterBore::OneRevolution(
+   CMachineState *pMachineState,
+   CNCPoint centre,
+   const double toolpath_radius,
+   const double gradient ) const
+{
+	Python python;
+	double circumference = 2.0 * PI * toolpath_radius;
+
+	CNCPoint point(centre);
+	// First quadrant (12 O'Clock to 9 O'Clock)
+	point.SetX( centre.X(false) - toolpath_radius );
+	point.SetY( centre.Y(false) );
+	point.SetZ( pMachineState->Location().Z() + (gradient * (circumference * (1.0 / 4.0))) );
+	python << _T("arc_ccw( x=") << point.X(true) << _T(", ") <<
+				_T("y=") << point.Y(true) << _T(", ") <<
+				_T("z=") << point.Z(true) << _T(", ") <<
+				_T("i=") << centre.X(true) << _T(", ") <<
+				_T("j=") << centre.Y(true) << _T(")\n");
+	pMachineState->Location(point);
+
+	// Second quadrant (9 O'Clock to 6 O'Clock)
+	point.SetX( centre.X(false) );
+	point.SetY( centre.Y(false) - toolpath_radius );
+	point.SetZ( pMachineState->Location().Z() + (gradient * (circumference * (1.0 / 4.0))) );
+	python << _T("arc_ccw( x=") << point.X(true) << _T(", ") <<
+				_T("y=") << point.Y(true) << _T(", ") <<
+				_T("z=") << point.Z(true) << _T(", ") <<
+				_T("i=") << centre.X(true) << _T(", ") <<
+				_T("j=") << centre.Y(true) << _T(")\n");
+	pMachineState->Location(point);
+
+	// Third quadrant (6 O'Clock to 3 O'Clock)
+	point.SetX( centre.X(false) + toolpath_radius );
+	point.SetY( centre.Y(false) );
+	point.SetZ( pMachineState->Location().Z() + (gradient * (circumference * (1.0 / 4.0))) );
+	python << _T("arc_ccw( x=") << point.X(true) << _T(", ") <<
+				_T("y=") << point.Y(true) << _T(", ") <<
+				_T("z=") << point.Z(true) << _T(", ") <<
+				_T("i=") << centre.X(true) << _T(", ") <<
+				_T("j=") << centre.Y(true) << _T(")\n");
+	pMachineState->Location(point);
+
+	// Fourth quadrant (3 O'Clock to 12 O'Clock)
+	point.SetX( centre.X(false) );
+	point.SetY( centre.Y(false) + toolpath_radius );
+	point.SetZ( pMachineState->Location().Z() + (gradient * (circumference * (1.0 / 4.0))) );
+	python << _T("arc_ccw( x=") << point.X(true) << _T(", ") <<
+				_T("y=") << point.Y(true) << _T(", ") <<
+				_T("z=") << point.Z(true) << _T(", ") <<
+				_T("i=") << centre.X(true) << _T(", ") <<
+				_T("j=") << centre.Y(true) << _T(")\n");
+	pMachineState->Location(point);
+
+	return(python);
+}
+
+Python CCounterBore::HelicalToolpath(
+	const CNCPoint & location,
+	const CTool *pTool,
+	const double toolpath_radius,
+	CMachineState *pMachineState,
+	const double start_depth,
+	const double final_depth,
+	const double requested_gradient,
+	const double requested_step_down ) const
+{
+	Python python;
+
+	double tolerance = heeksCAD->GetTolerance();
+
+	double gradient(requested_gradient);
+	double step_down(requested_step_down);
+
+	if (gradient > 0) gradient *= -1.0;
+	if (pTool->m_params.m_gradient < gradient)
+	{
+		// The tool can't handle this steep a descent.
+		gradient = pTool->m_params.m_gradient;
+	}
+
+	if (CDouble(gradient) == CDouble(0.0))
+	{
+		return(python);	// empty
+	}
+
+	if (pMachineState->Location().Z() < final_depth)
+	{
+	    wxMessageBox(_T("ERROR in Counterbore data.  Start depth < Final Depth"));
+	    return(python);
+	}
+
+	if (step_down <= 0)
+	{
+        wxMessageBox(_("Step down must be a positive number"));
+        return(python);
+	}
+
+	CNCPoint centre( location );
+	CNCPoint north( location ); north.SetY(location.Y() + toolpath_radius);
+
+	python << _T("comment('Helical toolpath down to ") << final_depth << _("')\n");
+
+	CNCPoint point(north);
+	if (pMachineState->Location().XYDistance(north) > tolerance)
+	{
+		// Rapid to above the starting point (up at clearance height)
+		point.SetZ( m_depth_op_params.ClearanceHeight() );
+		python << _T("rapid( z=") << point.Z(true) << _T(")\n");
+		python << _T("rapid( x=") << point.X(true) << _T(", y=") << point.Y(true) << _T(")\n");
+
+		// Rapid down to the 'rapid_safety_space'
+		point.SetZ( m_depth_op_params.m_rapid_safety_space );
+		python << _T("rapid( x=") << point.X(true) << _T(", y=") << point.Y(true) << _T(", z=") << point.Z(true) << _T(")\n");
+
+		// Feed (slowly) to the starting point at the centre of the material
+		point.SetZ(start_depth);
+		python << _T("feed( x=") << point.X(true) << _T(", y=") << point.Y(true) << _T(", z=") << point.Z(true) << _T(")\n");
+		pMachineState->Location(point);
+	}
+	else
+	{
+		if ((pMachineState->Location().Z() - start_depth) > tolerance)
+		{
+			point.SetZ(start_depth);
+			python << _T("feed(z=") << point.Z(true) << _T(")\n");
+			pMachineState->Location(point);
+		}
+	}
+
+	// At this point we're at the north point at start_depth.
+
+
+	if ((CDouble(pMachineState->Location().Z() - step_down)) < CDouble(final_depth))
+	{
+		step_down = pMachineState->Location().Z() - final_depth;	// last pass
+	}
+
+	double gradient_for_this_pass = gradient;
+	// Adjust the gradient if necessary so that we end up at one step-down depth
+	// when we arrive back at the north point.
+
+	double circumference = 2.0 * PI * toolpath_radius;
+	int num_revolutions = 0;
+	do {
+		num_revolutions++;
+		gradient_for_this_pass = (step_down / (double(num_revolutions) * circumference)) * -1.0;;
+	} while (CDouble(fabs(gradient_for_this_pass)) > CDouble(fabs(gradient)));
+
+	while (CDouble(pMachineState->Location().Z()) > (CDouble(final_depth)))
+	{
+		python << OneRevolution( pMachineState, centre, toolpath_radius, gradient_for_this_pass );
+	} // End while
+
+	return(python);
+
+} // End HelicalToolpath() method
+
+
+
 
 /**
 	Before we call this routine, we're sure that the tool's diameter is <= counterbore's diameter.  To
 	this end, we need to spiral down to each successive cutting depth and then spiral out to the
 	outside diameter.  Repeat these operations until we've cut the full depth and the full width.
  */
-Python CCounterBore::GenerateGCodeForOneLocation( const CNCPoint & location, const CTool *pTool ) const
+Python CCounterBore::GenerateGCodeForOneLocation( const CNCPoint & location, const CTool *pTool, CMachineState *pMachineState ) const
 {
 	Python python;
 
@@ -148,14 +334,14 @@ Python CCounterBore::GenerateGCodeForOneLocation( const CNCPoint & location, con
 	python << _T("feed( x=") << point.X(true) << _T(", y=") << point.Y(true) << _T(", z=") << point.Z(true) << _T(")\n");
 
 	double tolerance = heeksCAD->GetTolerance();
-	double max_radius_of_spiral = (m_params.m_diameter / 2.0) - pTool->CuttingRadius(false);
+	double max_radius_of_spiral = (m_params.m_diameter / 2.0) - pTool->CuttingRadius(false) - m_params.m_finishing_pass;
 
-	while ((cutting_depth - final_depth) > tolerance)
+	while (CDouble(cutting_depth) > CDouble(final_depth))
 	{
 		python << _T("comment('Spiral down until we get to the cutting depth')\n");
 
 		double step_down = m_depth_op_params.m_step_down;
-		if ((cutting_depth - step_down) < final_depth)
+		if (CDouble(cutting_depth - step_down) < CDouble(final_depth))
 		{
 			step_down = cutting_depth - final_depth;	// last pass
 		}
@@ -181,67 +367,22 @@ Python CCounterBore::GenerateGCodeForOneLocation( const CNCPoint & location, con
 		point.SetX( centre.X(false) );
 		point.SetY( centre.Y(false) + radius_of_spiral );
 		point.SetZ( cutting_depth );
+		pMachineState->Location(point);
 
-		while ((point.Z() - (cutting_depth - step_down)) > tolerance)
-		{
-			// Use the gradient of the cutting tool to determine how many circles need to
-			// be made before we have stepped down appropriately.
+		python << HelicalToolpath( centre,
+									pTool,
+									radius_of_spiral,
+									pMachineState,
+									cutting_depth,
+									cutting_depth - step_down,
+									pTool->m_params.m_gradient,
+									step_down );
 
-			double circumference = 2.0 * PI * radius_of_spiral;
-			double gradient = fabs(pTool->m_params.m_gradient);
+		if ((max_radius_of_spiral - radius_of_spiral) > tolerance) {
+			python << _T("comment('Now spiral outwards to the counterbore perimeter')\n");
+		} // End if - then
 
-			// If the gradient would have us cutting too deep in one circumference, reduce the
-			// gradient for this pass.
-			if ((point.Z() - (gradient * circumference)) <= (cutting_depth - step_down))
-			{
-				// Last pass.
-				gradient = fabs((point.Z() - (cutting_depth - step_down)) / circumference);
-			}
-
-			// First quadrant (12 O'Clock to 9 O'Clock)
-			python << _T("arc_ccw( x=") << drawing_units(centre.X(false) - radius_of_spiral) << _T(", ") <<
-						_T("y=") << centre.Y(true) << _T(", ") <<
-						_T("z=") << drawing_units(point.Z() - (gradient * (circumference * 0.25))) << _T(", ") <<
-						_T("i=") << drawing_units(centre.X(false)) << _T(", ") <<
-						_T("j=") << drawing_units(centre.Y(false)) << _T(")\n");
-			point.SetX( centre.X(false) - radius_of_spiral );
-			point.SetY( centre.Y(false) );
-			point.SetZ( point.Z() - (gradient * (circumference * 0.25)) );
-
-			// Second quadrant (9 O'Clock to 6 O'Clock)
-			python << _T("arc_ccw( x=") << centre.X(true) << _T(", ") <<
-						_T("y=") << drawing_units(centre.Y(false) - radius_of_spiral) << _T(", ") <<
-						_T("z=") << drawing_units(point.Z() - (gradient * (circumference * 0.25))) << _T(", ") <<	// full depth now
-						_T("i=") << drawing_units(centre.X(false)) << _T(", ") <<
-						_T("j=") << drawing_units(centre.Y(false)) << _T(")\n");
-			point.SetX( centre.X(false) );
-			point.SetY( centre.Y(false) - radius_of_spiral );
-			point.SetZ( point.Z() - (gradient * (circumference * 0.25)) );
-
-			// Third quadrant (6 O'Clock to 3 O'Clock)
-			python << _T("arc_ccw( x=") << drawing_units(centre.X(false) + radius_of_spiral) << _T(", ") <<
-						_T("y=") << centre.Y(true) << _T(", ") <<
-						_T("z=") << drawing_units(point.Z() - (gradient * (circumference * 0.25))) << _T(", ") <<	// full depth now
-						_T("i=") << drawing_units(centre.X(false)) << _T(", ") <<
-						_T("j=") << drawing_units(centre.Y(false)) << _T(")\n");
-			point.SetX( centre.X(false) + radius_of_spiral );
-			point.SetY( centre.Y(false) );
-			point.SetZ( point.Z() - (gradient * (circumference * 0.25)) );
-
-			// Fourth quadrant (3 O'Clock to 12 O'Clock)
-			python << _T("arc_ccw( x=") << centre.X(true) << _T(", ") <<
-						_T("y=") << drawing_units(centre.Y(false) + radius_of_spiral) << _T(", ") <<
-						_T("z=") << drawing_units(point.Z() - (gradient * (circumference * 0.25))) << _T(", ") <<	// full depth now
-						_T("i=") << drawing_units(centre.X(false)) << _T(", ") <<
-						_T("j=") << drawing_units(centre.Y(false) ) << _T(")\n");
-			point.SetX( centre.X(false) );
-			point.SetY( centre.Y(false) + radius_of_spiral );
-			point.SetZ( point.Z() - (gradient * (circumference * 0.25)) );
-		} // End while
-
-		python << _T("comment('Now spiral outwards to the counterbore perimeter')\n");
-
-		do {
+		while ((max_radius_of_spiral - radius_of_spiral) > tolerance) {
 			radius_of_spiral += (pTool->CuttingRadius(false) * tool_overlap_proportion);
 			if (radius_of_spiral > max_radius_of_spiral)
 			{
@@ -256,42 +397,8 @@ Python CCounterBore::GenerateGCodeForOneLocation( const CNCPoint & location, con
 			point.SetX( centre.X(false) );
 			point.SetY( centre.Y(false) + radius_of_spiral );
 
-			// First quadrant (12 O'Clock to 9 O'Clock)
-			python << _T("arc_ccw( x=") << drawing_units(centre.X(false) - radius_of_spiral) << _T(", ") <<
-						_T("y=") << centre.Y(true) << _T(", ") <<
-						_T("z=") << drawing_units(cutting_depth - (1.0 * step_down)) << _T(", ") <<	// full depth
-						_T("i=") << drawing_units(centre.X(false)) << _T(", ") <<
-						_T("j=") << drawing_units(centre.Y(false)) << _T(")\n");
-			point.SetX( centre.X(false) - radius_of_spiral );
-			point.SetY( centre.Y(false) );
-
-			// Second quadrant (9 O'Clock to 6 O'Clock)
-			python << _T("arc_ccw( x=") << centre.X(true) << _T(", ") <<
-						_T("y=") << drawing_units(centre.Y(false) - radius_of_spiral) << _T(", ") <<
-						_T("z=") << drawing_units(cutting_depth - (1.0 * step_down)) << _T(", ") <<	// full depth now
-						_T("i=") << drawing_units(centre.X(false)) << _T(", ") <<
-						_T("j=") << drawing_units(centre.Y(false)) << _T(")\n");
-			point.SetX( centre.X(false) );
-			point.SetY( centre.Y(false) - radius_of_spiral );
-
-			// Third quadrant (6 O'Clock to 3 O'Clock)
-			python << _T("arc_ccw( x=") << drawing_units(centre.X(false) + radius_of_spiral) << _T(", ") <<
-						_T("y=") << centre.Y(true) << _T(", ") <<
-						_T("z=") << drawing_units(cutting_depth - (1.0 * step_down)) << _T(", ") <<	// full depth now
-						_T("i=") << drawing_units(centre.X(false)) << _T(", ") <<
-						_T("j=") << drawing_units(centre.Y(false)) << _T(")\n");
-			point.SetX( centre.X(false) + radius_of_spiral );
-			point.SetY( centre.Y(false) );
-
-			// Fourth quadrant (3 O'Clock to 12 O'Clock)
-			python << _T("arc_ccw( x=") << centre.X(true) << _T(", ") <<
-						_T("y=") << drawing_units(centre.Y(false) + radius_of_spiral) << _T(", ") <<
-						_T("z=") << drawing_units(cutting_depth - (1.0 * step_down)) << _T(", ") <<	// full depth now
-						_T("i=") << drawing_units(centre.X(false)) << _T(", ") <<
-						_T("j=") << drawing_units(centre.Y(false)) << _T(")\n");
-			point.SetX( centre.X(false) );
-			point.SetY( centre.Y(false) + radius_of_spiral );
-		} while ((max_radius_of_spiral - radius_of_spiral) > tolerance);
+			python << OneRevolution( pMachineState, centre, radius_of_spiral, 0.0 );
+		}
 
 		if (((cutting_depth - final_depth) < step_down) && ((cutting_depth - final_depth) > tolerance))
 		{
@@ -303,6 +410,43 @@ Python CCounterBore::GenerateGCodeForOneLocation( const CNCPoint & location, con
 			cutting_depth -= step_down;
 		} // End if - else
 	} // End while
+
+	if (m_params.m_finishing_pass > 0.0)
+	{
+		// Rapid back to the centre of the hole (at the bottom) so we don't hit the
+		// sides on the way up.
+		python << _T("comment('Finishing pass')\n");
+		point = centre;
+		python << _T("rapid( x=") << centre.X(true) << _T(", y=") << centre.Y(true) << _T(")\n");
+
+		// Rapid to above the starting point (up at clearance height)
+		point.SetZ( m_depth_op_params.m_start_depth );
+		python << _T("rapid( z=") << point.Z(true) << _T(")\n");
+		pMachineState->Location(point);
+
+		// Move to 12 O'Clock.
+		double radius_of_spiral = (m_params.m_diameter / 2.0) - pTool->CuttingRadius(false);
+
+		cutting_depth = m_depth_op_params.m_start_depth;
+		python << _T("feed( x=") << centre.X(true) << _T(", ")
+					_T("y=") << drawing_units(centre.Y() + radius_of_spiral) << _T(", ")
+					_T("z=") << drawing_units(cutting_depth) << _T(")\n");
+		point.SetX( centre.X(false) );
+		point.SetY( centre.Y(false) + radius_of_spiral );
+		point.SetZ( cutting_depth );
+		pMachineState->Location(point);
+
+		python << HelicalToolpath( centre,
+									pTool,
+									radius_of_spiral,
+									pMachineState,
+									m_depth_op_params.m_start_depth,
+									m_depth_op_params.m_final_depth,
+									pTool->m_params.m_gradient,
+									m_depth_op_params.m_step_down );
+
+		python << OneRevolution( pMachineState, centre, radius_of_spiral, 0.0 );
+	}
 
 	// Rapid back to the centre of the hole (at the bottom) so we don't hit the
 	// sides on the way up.
@@ -349,7 +493,7 @@ Python CCounterBore::AppendTextToProgram(CMachineState *pMachineState)
 			for (std::vector<CNCPoint>::const_iterator l_itLocation = locations.begin(); l_itLocation != locations.end(); l_itLocation++)
 			{
 				CNCPoint point( pMachineState->Fixture().Adjustment(*l_itLocation) );
-				python << GenerateGCodeForOneLocation( point, pTool );
+				python << GenerateGCodeForOneLocation( point, pTool, pMachineState );
 				pMachineState->Location(*l_itLocation); // Remember where we are.
 			} // End for
 		} // End if - then
@@ -739,6 +883,7 @@ CCounterBore::CCounterBore(	const Symbols_t &symbols,
 bool CCounterBoreParams::operator== ( const CCounterBoreParams & rhs ) const
 {
 	if (m_diameter != rhs.m_diameter) return(false);
+	if (m_finishing_pass != rhs.m_finishing_pass) return(false);
 	if (m_sort_locations != rhs.m_sort_locations) return(false);
 
 	return(true);

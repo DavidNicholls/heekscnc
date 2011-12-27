@@ -331,7 +331,6 @@ static wxString WriteSketchDefn(HeeksObj* sketch, CMachineState *pMachineState)
 
 const wxBitmap &CPocket::GetIcon()
 {
-	if(!m_active)return GetInactiveIcon();
 	static wxBitmap* icon = NULL;
 	if(icon == NULL)icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/pocket.png")));
 	return *icon;

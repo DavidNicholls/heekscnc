@@ -142,6 +142,10 @@ public:
 	bool IsDifferent( HeeksObj *other ) { return( *this != (*(CDrilling *)other) ); }
 
 	/* virtual */ void OnSetTool(const COp::ToolNumber_t new_tool_number); // from COp class.
+
+	// Overloaded methods from the CSpeedOp class.
+	/* virtual */ bool IncludeHorozontalFeedRate() const;
+	/* virtual */ bool IncludeVerticalFeedRate() const;
 };
 
 

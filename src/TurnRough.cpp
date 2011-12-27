@@ -85,7 +85,6 @@ void CTurnRoughParams::ReadFromXMLElement(TiXmlElement* pElem)
 
 const wxBitmap &CTurnRough::GetIcon()
 {
-	if(!m_active)return GetInactiveIcon();
 	static wxBitmap* icon = NULL;
 	if(icon == NULL)icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/turnrough.png")));
 	return *icon;
@@ -385,7 +384,7 @@ bool CTurnRoughParams::operator==( const CTurnRoughParams & rhs ) const
 bool CTurnRough::operator==( const CTurnRough & rhs ) const
 {
 	if (m_turn_rough_params != rhs.m_turn_rough_params) return(false);
-	
+
 	return(CSpeedOp::operator==(rhs));
 }
 

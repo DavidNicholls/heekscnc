@@ -5,7 +5,6 @@
  * details.
  */
 
-
 #include "stdafx.h"
 #include <errno.h>
 
@@ -57,6 +56,7 @@
 #include "Tag.h"
 #include "ScriptOp.h"
 #include "AttachOp.h"
+#include "Boring.h"
 
 #include <sstream>
 
@@ -399,6 +399,58 @@ static void NewDrillingOpMenuCallback(wxCommandEvent &event)
 }
 
 
+static void NewBoringMenuCallback(wxCommandEvent &event)
+{
+	std::vector<CNCPoint> intersections;
+	std::list<HeeksObj *> symbols;
+	CDrilling::Symbols_t Tools;
+	int tool_number = 0;
+
+	const std::list<HeeksObj*>& list = heeksCAD->GetMarkedList();
+	for(std::list<HeeksObj*>::const_iterator It = list.begin(); It != list.end(); It++)
+	{
+		HeeksObj* object = *It;
+		if (object->GetType() == ToolType)
+		{
+			Tools.push_back( CDrilling::Symbol_t( object->GetType(), object->m_id ) );
+			tool_number = ((CTool *)object)->m_tool_number;
+		} // End if - then
+		else
+		{
+		    if (CBoring::ValidType( object->GetType() ))
+		    {
+                symbols.push_back( object );
+		    }
+		} // End if - else
+	} // End for
+
+	double depth = -1;
+	CBoring boring(symbols, -1, -1);
+	intersections = CDrilling::FindAllLocations(&boring);
+
+	if (intersections.size() == 0)
+	{
+		wxMessageBox(_("You must select some points, circles or other intersecting elements first!"));
+		return;
+	}
+
+	if(Tools.size() > 1)
+	{
+		wxMessageBox(_("You may only select a single tool for each drilling operation.!"));
+		return;
+	}
+
+	heeksCAD->CreateUndoPoint();
+	CBoring *new_object = new CBoring( symbols, tool_number, depth );
+	theApp.m_program->Operations()->Add(new_object, NULL);
+	heeksCAD->ClearMarkedList();
+	heeksCAD->Mark(new_object);
+	heeksCAD->Changed();
+}
+
+
+
+
 static void NewTappingOpMenuCallback(wxCommandEvent &event)
 {
 	std::vector<CNCPoint> intersections;
@@ -665,7 +717,7 @@ static void NewFixtureMenuCallback(wxCommandEvent &event)
 		CFixture::eCoordinateSystemNumber_t coordinate_system_number = CFixture::eCoordinateSystemNumber_t(theApp.m_program->Fixtures()->GetNextFixture());
 
 		heeksCAD->CreateUndoPoint();
-		CFixture *new_object = new CFixture( NULL, coordinate_system_number, theApp.m_program->m_machine.m_safety_height_defined, theApp.m_program->m_machine.m_safety_height );
+		CFixture *new_object = new CFixture( NULL, coordinate_system_number );
 		theApp.m_program->Fixtures()->Add(new_object, NULL);
 		heeksCAD->ClearMarkedList();
 		heeksCAD->Mark(new_object);
@@ -930,7 +982,7 @@ static void NewMetricTappingToolMenuCallback(wxCommandEvent &event)
             CTool *new_object = new CTool(NULL, CToolParams::eTapTool, heeksCAD->GetNextID(ToolType));
             new_object->m_params.m_diameter = metric_tap_sizes[i].diameter;
             new_object->m_params.m_pitch = metric_tap_sizes[i].pitch;
-            new_object->m_params.m_direction = 0;    // Right hand thread.
+			new_object->m_params.m_direction = CToolParams::eRightHandThread;    // Right hand thread.
             new_object->ResetTitle();
             theApp.m_program->Tools()->Add(new_object, NULL);
             heeksCAD->ClearMarkedList();
@@ -964,7 +1016,7 @@ static void NewUnifiedThreadingStandardTappingToolMenuCallback(wxCommandEvent &e
             CTool *new_object = new CTool(NULL, CToolParams::eTapTool, heeksCAD->GetNextID(ToolType));
             new_object->m_params.m_diameter = unified_thread_standard_tap_sizes[i].diameter;
             new_object->m_params.m_pitch = unified_thread_standard_tap_sizes[i].pitch;
-            new_object->m_params.m_direction = 0;    // Right hand thread.
+			new_object->m_params.m_direction = CToolParams::eRightHandThread;    // Right hand thread.
             new_object->ResetTitle();
             theApp.m_program->Tools()->Add(new_object, NULL);
             heeksCAD->ClearMarkedList();
@@ -998,7 +1050,7 @@ static void NewBritishStandardWhitworthTappingToolMenuCallback(wxCommandEvent &e
             CTool *new_object = new CTool(NULL, CToolParams::eTapTool, heeksCAD->GetNextID(ToolType));
             new_object->m_params.m_diameter = british_standard_whitworth_tap_sizes[i].diameter;
             new_object->m_params.m_pitch = british_standard_whitworth_tap_sizes[i].pitch;
-            new_object->m_params.m_direction = 0;    // Right hand thread.
+			new_object->m_params.m_direction = CToolParams::eRightHandThread;    // Right hand thread.
             new_object->ResetTitle();
             theApp.m_program->Tools()->Add(new_object, NULL);
             heeksCAD->ClearMarkedList();
@@ -1318,6 +1370,7 @@ static void AddToolBars()
 		heeksCAD->AddFlyoutButton(_("Profile"), ToolImage(_T("opprofile")), _("New Profile Operation..."), NewProfileOpMenuCallback);
 		heeksCAD->AddFlyoutButton(_("Pocket"), ToolImage(_T("pocket")), _("New Pocket Operation..."), NewPocketOpMenuCallback);
 		heeksCAD->AddFlyoutButton(_("Drill"), ToolImage(_T("drilling")), _("New Drill Cycle Operation..."), NewDrillingOpMenuCallback);
+		heeksCAD->AddFlyoutButton(_("Boring"), ToolImage(_T("boring")), _("New Boring Cycle Operation..."), NewBoringMenuCallback);
 		heeksCAD->AddFlyoutButton(_("CounterBore"), ToolImage(_T("counterbore")), _("New CounterBore Cycle Operation..."), NewCounterBoreOpMenuCallback);
 		heeksCAD->AddFlyoutButton(_("Contour"), ToolImage(_T("opcontour")), _("New Contour Operation..."), NewContourOpMenuCallback);
 		heeksCAD->AddFlyoutButton(_("Inlay"), ToolImage(_T("opinlay")), _("New Inlay Operation..."), NewInlayOpMenuCallback);
@@ -1452,6 +1505,7 @@ void CHeeksCNCApp::OnStartUp(CHeeksCADInterface* h, const wxString& dll_path)
 	heeksCAD->AddMenuItem(menuMillingOperations, _("Profile Operation..."), ToolImage(_T("opprofile")), NewProfileOpMenuCallback);
 	heeksCAD->AddMenuItem(menuMillingOperations, _("Pocket Operation..."), ToolImage(_T("pocket")), NewPocketOpMenuCallback);
 	heeksCAD->AddMenuItem(menuMillingOperations, _("Drilling Operation..."), ToolImage(_T("drilling")), NewDrillingOpMenuCallback);
+	heeksCAD->AddMenuItem(menuMillingOperations, _("Boring Operation..."), ToolImage(_T("boring")), NewBoringMenuCallback);
 	heeksCAD->AddMenuItem(menuMillingOperations, _("Chamfer Operation..."), ToolImage(_T("opchamfer")), NewChamferOpMenuCallback);
 	heeksCAD->AddMenuItem(menuMillingOperations, _("CounterBore Operation..."), ToolImage(_T("counterbore")), NewCounterBoreOpMenuCallback);
 	heeksCAD->AddMenuItem(menuMillingOperations, _("Contour Operation..."), ToolImage(_T("opcontour")), NewContourOpMenuCallback);
@@ -1544,7 +1598,8 @@ void CHeeksCNCApp::OnStartUp(CHeeksCADInterface* h, const wxString& dll_path)
 	wxStandardPaths standard_paths;
 	config.Read(_T("StartupFilesDirectory"), &m_startup_files_directory, standard_paths.GetUserConfigDir() );
 
-
+	m_drilling_reference_speed = 3000.0;	// default.
+	config.Read(_T("DrillingReferenceSpeed"), &m_drilling_reference_speed, 3000.0);
 
 	aui_manager->GetPane(m_program_canvas).Show(program_visible);
 	aui_manager->GetPane(m_output_canvas).Show(output_visible);
@@ -1592,6 +1647,7 @@ void CHeeksCNCApp::OnStartUp(CHeeksCADInterface* h, const wxString& dll_path)
 	heeksCAD->RegisterReadXMLfunction("ScriptOp", CScriptOp::ReadFromXMLElement);
 	heeksCAD->RegisterReadXMLfunction("AttachOp", CAttachOp::ReadFromXMLElement);
 	heeksCAD->RegisterReadXMLfunction("UnattachOp", CUnattachOp::ReadFromXMLElement);
+	heeksCAD->RegisterReadXMLfunction("Boring", CBoring::ReadFromXMLElement);
 
 #ifdef WIN32
 	heeksCAD->SetDefaultLayout(wxString(_T("layout2|name=ToolBar;caption=General Tools;state=2108156;dir=1;layer=10;row=0;pos=0;prop=100000;bestw=279;besth=31;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=GeomBar;caption=Geometry Tools;state=2108156;dir=1;layer=10;row=0;pos=695;prop=100000;bestw=145;besth=31;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=384;floaty=355;floatw=172;floath=71|name=SolidBar;caption=Solid Tools;state=2108156;dir=1;layer=10;row=0;pos=851;prop=100000;bestw=156;besth=31;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=444;floaty=368;floatw=143;floath=71|name=ViewingBar;caption=Viewing Tools;state=2108156;dir=1;layer=10;row=0;pos=566;prop=100000;bestw=118;besth=31;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=480;floaty=399;floatw=145;floath=71|name=Graphics;caption=Graphics;state=768;dir=5;layer=0;row=0;pos=0;prop=100000;bestw=800;besth=600;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=Objects;caption=Objects;state=2099196;dir=4;layer=1;row=0;pos=0;prop=100000;bestw=300;besth=400;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=204;floaty=327;floatw=318;floath=440|name=Options;caption=Options;state=2099196;dir=4;layer=1;row=0;pos=1;prop=100000;bestw=300;besth=200;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=Input;caption=Input;state=2099196;dir=4;layer=1;row=0;pos=2;prop=100000;bestw=300;besth=200;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=Properties;caption=Properties;state=2099196;dir=4;layer=1;row=0;pos=3;prop=100000;bestw=300;besth=200;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=MachiningBar;caption=Machining tools;state=2108156;dir=1;layer=10;row=0;pos=290;prop=100000;bestw=265;besth=31;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=Program;caption=Program;state=2099198;dir=3;layer=0;row=0;pos=0;prop=100000;bestw=600;besth=200;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=Output;caption=Output;state=2099196;dir=3;layer=0;row=0;pos=0;prop=100000;bestw=600;besth=200;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|dock_size(5,0,0)=504|dock_size(4,1,0)=205|dock_size(1,10,0)=33|dock_size(3,0,0)=219|")));
@@ -1827,6 +1883,12 @@ void on_set_startup_files_directory(const wxChar *value, HeeksObj *object)
 	theApp.m_startup_files_directory = value;
 }
 
+void on_set_drilling_reference_speed(const double value, HeeksObj *object)
+{
+	theApp.m_drilling_reference_speed = value;
+}
+
+
 
 void CHeeksCNCApp::GetOptions(std::list<Property *> *list){
 	PropertyList* machining_options = new PropertyList(_("machining options"));
@@ -1840,6 +1902,7 @@ void CHeeksCNCApp::GetOptions(std::list<Property *> *list){
 	machining_options->m_list.push_back ( new PropertyCheck ( _("Use Clipper not Boolean"), m_use_Clipper_not_Boolean, NULL, on_set_use_clipper ) );
 	machining_options->m_list.push_back ( new PropertyCheck ( _("Use DOS Line Endings"), m_use_DOS_not_Unix, NULL, on_set_use_DOS ) );
 	machining_options->m_list.push_back ( new PropertyDir( _("Directory for startup (default.???) files"), m_startup_files_directory, NULL, on_set_startup_files_directory ) );
+	machining_options->m_list.push_back ( new PropertyDouble( _("Drilling Reference Speed"), m_drilling_reference_speed, NULL, on_set_drilling_reference_speed ) );
 
 	list->push_back(machining_options);
 
@@ -1864,6 +1927,7 @@ void CHeeksCNCApp::OnFrameDelete()
 	config.Write(_T("UseClipperNotBoolean"), m_use_Clipper_not_Boolean);
     config.Write(_T("UseDOSNotUnix"), m_use_DOS_not_Unix);
 	config.Write(_T("StartupFilesDirectory"), m_startup_files_directory );
+	config.Write(_T("DrillingReferenceSpeed"), m_drilling_reference_speed );
 }
 
 wxString CHeeksCNCApp::GetDllFolder()
@@ -1952,6 +2016,7 @@ wxString HeeksCNCType( const int type )
 	case UnattachOpType:       return(_("UnattachOp"));
 	case WaterlineType:       return(_("Waterline"));
 	case TappingType:       return(_("Tapping"));
+	case BoringType:		return(_("Boring"));
 
 	default:
         return(_T("")); // Indicates that this function could not make the conversion.

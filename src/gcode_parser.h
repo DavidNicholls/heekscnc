@@ -63,7 +63,8 @@ typedef enum {
 	stArcClockwise,
 	stArcCounterClockwise,
 	stDrilling,
-	stTapping
+	stTapping,
+	stBoring
 } eStatement_t;
 
 enum {

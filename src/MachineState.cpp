@@ -120,7 +120,7 @@ Python CMachineState::Tool( const int new_tool )
 			} // End if - then
 
             python << _T("comment(") << PythonString(_T("tool change to ") + pTool->m_title) << _T(")\n");
-            python << _T("tool_change( id=") << new_tool << _T(")\n");
+            python << _T("tool_change( id=") << new_tool << _T(", description=") << PythonString(wxString(_("Tool change to ") + pTool->m_title)) << _T(")\n");
 			if(m_attached_to_surface)
 			{
 				python << _T("nc.nc.creator.cutter = ") << pTool->OCLDefinition(m_attached_to_surface) << _T("\n");
@@ -205,31 +205,14 @@ Python CMachineState::Fixture( CFixture new_fixture )
 
     if ((m_fixture != new_fixture) || (! m_fixture_has_been_set))
     {
-        // The fixture has been changed.  Move to the highest safety-height between the two fixtures.
-        if (m_fixture.m_params.m_safety_height_defined)
-        {
-			if (new_fixture.m_params.m_safety_height_defined)
-			{
-				wxString comment;
-				comment << _("Moving to a safety height common to both ") << m_fixture.m_coordinate_system_number << _(" and ") << new_fixture.m_coordinate_system_number;
-				python << _T("comment(") << PythonString(comment) << _T(")\n");
+        // The fixture has been changed.  Move to the machine's safety height.
+		if (PROGRAM->m_machine.m_safety_height_defined == false)
+		{
+			wxMessageBox(_("Inter-fixture movement required but the machine's safety height has not been set.  Set this in the Program properties"));
+			return(python);	// empty.
+		}
 
-				// Both fixtures have a safety height defined.  Move the highest of the two.
-				if (m_fixture.m_params.m_safety_height > new_fixture.m_params.m_safety_height)
-				{
-					python << _T("rapid(z=") << m_fixture.m_params.m_safety_height / PROGRAM->m_units << _T(", machine_coordinates=True)\n");
-				} // End if - then
-				else
-				{
-					python << _T("rapid(z=") << new_fixture.m_params.m_safety_height / PROGRAM->m_units << _T(", machine_coordinates=True)\n");
-				} // End if - else
-			} // End if - then
-			else
-			{
-				// The old fixture has a safety height but the new one doesn't
-				python << _T("rapid(z=") << m_fixture.m_params.m_safety_height / PROGRAM->m_units << _T(", machine_coordinates=True)\n");
-			} // End if - else
-        }
+		python << _T("rapid(z=") << PROGRAM->m_machine.m_safety_height / PROGRAM->m_units << _T(", machine_coordinates=True)\n");
 
 		// Invoke new coordinate system.
 		python << new_fixture.AppendTextToProgram();
@@ -403,12 +386,12 @@ Python CMachineState::ToolChangeMovement_Preamble(std::set<CFixture> & fixtures)
 
 
 		// Probe the height of the tool length switch (if appropriate)
-		if ((m_pMachine->m_safety_height_defined) && 
-			(pFixtureProbeTool != NULL) && 
+		if ((m_pMachine->m_safety_height_defined) &&
+			(pFixtureProbeTool != NULL) &&
 			(PROGRAM->m_machine.m_skip_switch_and_fixture_probing_cycle == false))
 		{
 			python << _T("comment(") << PythonString(_T("tool change to ") + pFixtureProbeTool->m_title) << _T(")\n");
-			python << _T("tool_change(id=") << m_pMachine->m_fixture_probe_tool_number << _T(")\n");
+			python << _T("tool_change(id=") << m_pMachine->m_fixture_probe_tool_number << _T(", description=") << PythonString(wxString(_("Tool change to ") + pFixtureProbeTool->m_title)) << _T(")\n");
 			python << _T("feedrate(") << m_pMachine->m_tool_change_probe_feed_rate / theApp.m_program->m_units << _T(")\n");
 
 			// Make sure it's negative as we're stepping down.  There is no option
@@ -519,7 +502,7 @@ bool CMachineState::NearestLocation(CFixture fixture, CNCPoint location, CNCPoin
 	{
 		if (itLocation->second.XYDistance(location) < tolerance)
 		{
-			options.push_back(itLocation->second);			
+			options.push_back(itLocation->second);
 		}
 	}
 

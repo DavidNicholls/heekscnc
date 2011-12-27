@@ -46,6 +46,7 @@ public:
 	void WriteBaseXML(TiXmlElement *element);
 	void ReadBaseXML(TiXmlElement* element);
 	const wxBitmap& GetInactiveIcon();
+	virtual std::list<wxBitmap> GetIcons();
 	virtual const wxChar* GetShortString(void)const{return m_title.c_str();}
 	bool CanEditString(void)const{return true;}
 	void OnEditString(const wxChar* str);

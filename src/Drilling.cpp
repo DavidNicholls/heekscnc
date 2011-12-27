@@ -26,6 +26,7 @@
 #include "Program.h"
 #include "CounterBore.h"
 #include "Tools.h"
+#include "Boring.h"
 
 #include <sstream>
 #include <iomanip>
@@ -232,7 +233,6 @@ void CDrillingParams::ReadParametersFromXMLElement(TiXmlElement* pElem)
 
 const wxBitmap &CDrilling::GetIcon()
 {
-	if(!m_active)return GetInactiveIcon();
 	static wxBitmap* icon = NULL;
 	if(icon == NULL)icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/drilling.png")));
 	return *icon;
@@ -747,7 +747,7 @@ void CDrilling::ReloadPointers()
 			if (lhsPtr->GetType() == ProfileType)
 			{
 				std::vector<CNCPoint> starting_points;
-				CMachineState machine(&(theApp.m_program->m_machine), CFixture(NULL,CFixture::G54, false, 0.0));
+				CMachineState machine(&(theApp.m_program->m_machine), CFixture(NULL,CFixture::G54));
 
 				// to do, make this get the starting point again
 				//((CProfile *)lhsPtr)->AppendTextToProgram( starting_points, &machine );
@@ -783,6 +783,18 @@ void CDrilling::ReloadPointers()
             if (lhsPtr->GetType() == CounterBoreType)
             {
                 std::vector<CNCPoint> holes = CDrilling::FindAllLocations((CCounterBore *)lhsPtr, starting_location, false, NULL);
+                for (std::vector<CNCPoint>::const_iterator l_itHole = holes.begin(); l_itHole != holes.end(); l_itHole++)
+                {
+                    if (std::find( locations.begin(), locations.end(), *l_itHole ) == locations.end())
+                    {
+                        locations.push_back( *l_itHole );
+                    } // End if - then
+                } // End for
+            } // End if - then
+
+			if (lhsPtr->GetType() == BoringType)
+            {
+                std::vector<CNCPoint> holes = CDrilling::FindAllLocations((CBoring *)lhsPtr, starting_location, false, NULL);
                 for (std::vector<CNCPoint>::const_iterator l_itHole = holes.begin(); l_itHole != holes.end(); l_itHole++)
                 {
                     if (std::find( locations.begin(), locations.end(), *l_itHole ) == locations.end())
@@ -946,6 +958,8 @@ std::list<wxString> CDrilling::DesignRulesAdjustment(const bool apply_changes)
         case PocketType:
 		case FixtureType:
 		case ILineType:
+		case LineType:
+		case BoringType:
             return(true);
 
         default:
@@ -1040,5 +1054,15 @@ double CDrillingParams::ClearanceHeight() const
 			break;
 		}
 	}
+}
+
+/* virtual */ bool CDrilling::IncludeHorozontalFeedRate() const
+{
+	return(false);
+}
+
+/* virtual */ bool CDrilling::IncludeVerticalFeedRate() const
+{
+	return(true);
 }
 

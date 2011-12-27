@@ -27,7 +27,7 @@ public:
 	void GetProperties(CSpeedOp* parent, std::list<Property *> *list);
 	void WriteXMLAttributes(TiXmlNode* pElem);
 	void ReadFromXMLElement(TiXmlElement* pElem);
-	void ResetSpeeds(const int tool_number);
+	void ResetSpeeds(const int tool_number, const double bored_hole_diameter);
 	void ResetFeeds(const int tool_number);
 };
 
@@ -70,6 +70,12 @@ public:
 	bool operator!=( const CSpeedOp & rhs ) const { return(! (*this == rhs)); }
 	bool IsDifferent(HeeksObj *other) { return( *this != (*((CSpeedOp *) other))); }
 	std::list<wxString> DesignRulesAdjustment(const bool apply_changes);
+
+	virtual void ResetSpeeds(const int tool_number, const double bored_hole_diameter);
+	virtual void ResetFeeds(const int tool_number);
+
+	virtual bool IncludeHorozontalFeedRate() const { return(true); }
+	virtual bool IncludeVerticalFeedRate() const { return(true); }
 };
 
 #endif

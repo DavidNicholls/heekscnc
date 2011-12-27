@@ -18,6 +18,8 @@
 #include <TopoDS_Edge.hxx>
 #include <BRepAdaptor_Curve.hxx>
 #include <GCPnts_AbscissaPoint.hxx>
+#include <Bnd_Box.hxx>
+#include "CDouble.h"
 
 class CContour;
 
@@ -111,84 +113,6 @@ public:
 	typedef std::list< Symbol_t > Symbols_t;
 
 public:
-    class CDouble
-	{
-	public:
-		CDouble(const double value)
-		{
-			m_value = value;
-		}
-
-		~CDouble() { }
-
-		CDouble( const CDouble & rhs )
-		{
-			*this = rhs;
-		}
-
-		CDouble & operator= ( const CDouble & rhs )
-		{
-			if (this != &rhs)
-			{
-				m_value = rhs.m_value;
-			}
-
-			return(*this);
-		}
-
-		CDouble & operator*= ( const CDouble & rhs )
-		{
-			m_value *= rhs.m_value;
-			return(*this);
-		}
-
-		CDouble & operator/= ( const CDouble & rhs )
-		{
-			m_value /= rhs.m_value;
-			return(*this);
-		}
-
-		CDouble & operator+= ( const CDouble & rhs )
-		{
-			m_value += rhs.m_value;
-			return(*this);
-		}
-
-		CDouble & operator-= ( const CDouble & rhs )
-		{
-			m_value -= rhs.m_value;
-			return(*this);
-		}
-
-		bool operator==( const CDouble & rhs ) const
-		{
-			if (fabs(m_value - rhs.m_value) < (2.0 * heeksCAD->GetTolerance())) return(true);
-			return(false);
-		}
-
-		bool operator< (const CDouble & rhs ) const
-		{
-			if (*this == rhs) return(false);
-			return(m_value < rhs.m_value);
-		}
-
-		bool operator<= (const CDouble & rhs ) const
-		{
-			if (*this == rhs) return(true);
-			return(m_value < rhs.m_value);
-		}
-
-		bool operator> (const CDouble & rhs ) const
-		{
-			if (*this == rhs) return(false);
-			return(m_value > rhs.m_value);
-		}
-
-		double Value() const { return(m_value); }
-
-	private:
-		double	m_value;
-	};
 
 
 	/**
@@ -210,6 +134,7 @@ public:
 		Path(const TopoDS_Edge edge): m_edge(edge), m_curve(m_edge), m_is_forwards(true)
 		{
 			m_length = GCPnts_AbscissaPoint::Length( m_curve );
+			m_tolerance = heeksCAD->GetTolerance();
 		}
 
 		Path & operator= ( const Path & rhs )
@@ -220,6 +145,7 @@ public:
 				m_curve = BRepAdaptor_Curve(m_edge);
 				m_length = rhs.m_length;
 				m_is_forwards = rhs.m_is_forwards;
+				m_tolerance = rhs.m_tolerance;
 			}
 
 			return(*this);
@@ -237,6 +163,13 @@ public:
 
 		Standard_Real Proportion( const double proportion ) const;
 
+		CNCPoint PointAt(const Standard_Real U) const
+		{
+			gp_Pnt point;
+			m_curve.D0(U,point);
+			return(point);
+		}
+
 		CNCPoint StartPoint() const
 		{
 			gp_Pnt point;
@@ -251,22 +184,49 @@ public:
 			return(point);
 		}
 
+		gp_Vec StartVector() const
+		{
+			gp_Vec vec;
+			gp_Pnt point;
+			m_curve.D1(StartParameter(), point, vec);
+			if (! m_is_forwards) vec.Reverse();
+			return(vec);
+		}
+
+		gp_Vec EndVector() const
+		{
+			gp_Vec vec;
+			gp_Pnt point;
+			m_curve.D1(EndParameter(), point, vec);
+			if (! m_is_forwards) vec.Reverse();
+			return(vec);
+		}
+
 		Standard_Real Length() const
 		{
 			return(m_length);
         }
 
-		void Reverse() { m_is_forwards = ! m_is_forwards; }
+		void Reverse() 
+		{
+			m_is_forwards = ! m_is_forwards;
+			m_edge.Reverse();
+			m_curve = BRepAdaptor_Curve(m_edge);
+		}
 
 		Python GCode( CMachineState *pMachineState, const double end_z );
 		Python GCode( Standard_Real start_u, Standard_Real end_u, CMachineState *pMachineState, const double end_z );
-		HeeksObj *Sketch() const;
+		HeeksObj *Sketch();
+		std::list<CNCPoint> Intersect( const Path & rhs ) const;
+		Standard_Real Tolerance() const { return(m_tolerance); }
 
 	private:
 		TopoDS_Edge m_edge;
 		BRepAdaptor_Curve m_curve;
 		bool		m_is_forwards;
 		Standard_Real m_length;
+		Standard_Real m_tolerance;
+
 	}; // End Path class definition
 
 	/**
@@ -286,6 +246,9 @@ public:
 		std::vector<Path>::iterator Next(std::vector<Path>::iterator itPath);
 		CNCPoint StartPoint() const;
 		CNCPoint EndPoint() const;
+		bool IsInside( const CNCPoint point ) const;
+		bool IsInside( const ContiguousPath & rhs ) const;
+		TopoDS_Wire Wire() const;
 
 		ContiguousPath & operator+=( ContiguousPath &rhs );
 
@@ -298,11 +261,15 @@ public:
 		bool SetStartPoint( CNCPoint location );
 
 		Python Ramp( std::vector<Path>::iterator itPath, CMachineState *pMachineState, const double end_z );
-		HeeksObj *Sketch() const;
+		HeeksObj *Sketch();
+
+		Bnd_Box BoundingBox() const;
+		bool IsClockwise();
 
 	private:
 		bool m_is_forwards;
 		std::vector<Path> m_paths;
+		int m_concentricity;	// more positive the value indicates an outer (encompasing) polygon.
 	}; // End of ContiguousPath class definition.
 
 	class Paths
@@ -331,7 +298,7 @@ public:
 						const double start_depth,
 						const CContourParams::EntryMove_t entry_move_type );
 
-        bool GenerateSketches() const;
+        bool GenerateSketches();
 
 	private:
 		std::vector<ContiguousPath> m_contiguous_paths;

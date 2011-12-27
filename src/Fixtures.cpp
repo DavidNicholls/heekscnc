@@ -223,7 +223,7 @@ std::list<CFixture> CFixtures::PublicFixtures()
 
     if (public_fixtures.size() == 0)
     {
-        public_fixtures.push_back(CFixture(_T("default G54 fixture"), CFixture::G54, false, 0.0));
+        public_fixtures.push_back(CFixture(_T("default G54 fixture"), CFixture::G54));
     }
 
 	return(public_fixtures);

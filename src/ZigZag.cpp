@@ -158,7 +158,6 @@ CZigZag & CZigZag::operator= ( const CZigZag & rhs )
 
 const wxBitmap &CZigZag::GetIcon()
 {
-	if(!m_active)return GetInactiveIcon();
 	static wxBitmap* icon = NULL;
 	if(icon == NULL)icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/zigzag.png")));
 	return *icon;
@@ -362,7 +361,7 @@ bool CZigZag::CanAdd(HeeksObj* object)
 
 	switch (object->GetType())
 	{
-	case StlSolidType:  
+	case StlSolidType:
 	case SolidType:
 	case SketchType:
 	case FixtureType:

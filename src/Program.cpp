@@ -973,6 +973,8 @@ void CMachine::ReadBaseXML(TiXmlElement* element)
 		- execution order
 		- centre drilling operations
 		- drilling operations
+		- chamfer operations
+		- tapping operations
 		- all other operations (sorted by tool number to avoid unnecessary tool changes)
  */
 struct sort_operations : public std::binary_function< bool, COp *, COp * >
@@ -989,6 +991,9 @@ struct sort_operations : public std::binary_function< bool, COp *, COp * >
 
 		if ((((HeeksObj *)lhs)->GetType() == DrillingType) && (((HeeksObj *)rhs)->GetType() != DrillingType)) return(true);
 		if ((((HeeksObj *)lhs)->GetType() != DrillingType) && (((HeeksObj *)rhs)->GetType() == DrillingType)) return(false);
+
+		if ((((HeeksObj *)lhs)->GetType() == TappingType) && (((HeeksObj *)rhs)->GetType() != TappingType)) return(true);
+		if ((((HeeksObj *)lhs)->GetType() != TappingType) && (((HeeksObj *)rhs)->GetType() == TappingType)) return(false);
 
 		if ((((HeeksObj *)lhs)->GetType() == DrillingType) && (((HeeksObj *)rhs)->GetType() == DrillingType))
 		{
@@ -1063,7 +1068,7 @@ std::set<CFixture> CProgram::AllFixtures()
 		// We need at least one fixture definition to generate any GCode.  Generate one
 		// that provides no rotation at all.
 
-		fixtures.insert( CFixture( NULL, CFixture::G54, false, 0.0 ) );
+		fixtures.insert( CFixture( NULL, CFixture::G54 ) );
 	} // End if - then
 
 	return(fixtures);
@@ -1361,7 +1366,7 @@ Python CProgram::RewritePythonProgram()
 
 	if (m_path_control_mode != ePathControlUndefined)
 	{
-		python << _T("set_path_control_mode(") << (int) m_path_control_mode << _T(",") << m_motion_blending_tolerance << _T(",") << m_naive_cam_tolerance << _T(")\n");
+		python << _T("set_path_control_mode(") << (int) m_path_control_mode << _T(",") << m_motion_blending_tolerance / m_units << _T(",") << m_naive_cam_tolerance / m_units << _T(")\n");
 	}
 
 	python << m_raw_material.AppendTextToProgram();
@@ -1399,19 +1404,26 @@ Python CProgram::RewritePythonProgram()
 		return(empty);
 	}
 
+	if ((fixtures.size() > 1) && (this->m_machine.m_safety_height_defined == false))
+	{
+		wxMessageBox(_("Inter-fixture movement required but the machine safety height has not been set in the Program properties"));
+		Python empty;
+		return(empty);
+	}
+
 	CMachineState machine(&m_machine, *(fixtures.begin()));
 
     // Go through and probe each fixture (and the tool length switch) to determine the height offsets (if appropriate)
 	python << machine.ToolChangeMovement_Preamble(fixtures);
 
-	for (std::set<CFixture>::const_iterator l_itFixture = fixtures.begin(); l_itFixture != fixtures.end(); l_itFixture++)
+	// And then all the rest of the operations.
+	for (OperationsMap_t::const_iterator l_itOperation = operations.begin(); l_itOperation != operations.end(); l_itOperation++)
 	{
-        // And then all the rest of the operations.
-		for (OperationsMap_t::const_iterator l_itOperation = operations.begin(); l_itOperation != operations.end(); l_itOperation++)
-		{
-			HeeksObj *object = (HeeksObj *) *l_itOperation;
-			if (object == NULL) continue;
+		HeeksObj *object = (HeeksObj *) *l_itOperation;
+		if (object == NULL) continue;
 
+		for (std::set<CFixture>::const_iterator l_itFixture = fixtures.begin(); l_itFixture != fixtures.end(); l_itFixture++)
+		{
 			if(COperations::IsAnOperation(object->GetType()))
 			{
 				bool private_fixture_matches = false;
@@ -1448,8 +1460,13 @@ Python CProgram::RewritePythonProgram()
 					machine.MarkAsProcessed(object, machine.Fixture());
 				}
 			}
-		} // End for - operation
-	} // End for - fixture
+		} // End for - fixture
+	} // End for - operation
+
+    if (m_machine.m_safety_height_defined)
+    {
+        python << _T("rapid(z=") << m_machine.m_safety_height / m_units << _T(", machine_coordinates=True)\n");
+    }
 
 	python << _T("program_end()\n");
 	m_python_program = python;

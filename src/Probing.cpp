@@ -57,6 +57,13 @@ static void on_set_depth(double value, HeeksObj* object)
 	heeksCAD->Changed();	// Force a re-draw from glCommands()
 }
 
+wxString CProbe_Centre::Name(const wxString axis, const wxString name) const
+{
+	wxString result;
+	result << _T("<") << name << _T("_") << axis << _T(">");
+	return(result);
+}
+
 Python CProbe_Centre::AppendTextToProgram( CMachineState *pMachineState )
 {
 	Python python;
@@ -79,166 +86,222 @@ Python CProbe_Centre::AppendTextToProgram( CMachineState *pMachineState )
 		} // End if - then
 	} // End if - then
 
+	typedef wxString AxisName_t;
+	typedef wxString VariableName_t;
+	typedef std::pair<VariableName_t, VariableName_t> VariablePair_t;
+	typedef std::pair<AxisName_t, VariablePair_t> Variable_t;
+	typedef std::set< Variable_t > Variables_t;
+	Variables_t variables;
+
+	#define AXIS(it) it->first
+	#define FIRST_NAME(it) it->second.first
+	#define SECOND_NAME(it) it->second.second
+
+	VariableName_t unused(_T("<unused>"));
+
 	// We're going to be working in relative coordinates based on the assumption
 	// that the operator has first jogged the machine to the approximate centre point.
 
-	CProbing::PointsList_t points = GetPoints();
-
-	if (m_direction == eOutside)
+	for (int pass=1; pass<=2; pass++)
 	{
-		python << _T("comment(") << PythonString(_("This program assumes that the machine operator has jogged")) << _T(")\n");
-		python << _T("comment(") << PythonString(_("the machine to approximatedly the correct location")) << _T(")\n");
-		python << _T("comment(") << PythonString(_("immediately above the protrusion we are finding the centre of.")) << _T(")\n");
-		python << _T("comment(") << PythonString(_("This program then jogs out and down in two opposite directions")) << _T(")\n");
-		python << _T("comment(") << PythonString(_("before probing back towards the centre point looking for the")) << _T(")\n");
-		python << _T("comment(") << PythonString(_("protrusion.")) << _T(")\n");
+		CProbing::PointsList_t points = GetPoints();
 
-		if ((m_alignment == eXAxis) || (m_number_of_points == 4))
-		{
-			python << AppendTextForSingleProbeOperation( points[0].second, points[1].second, points[2].second.Z(false), points[3].second,
-								       	_T("1001"), _T("1002"), -1.0 * probe_radius, 0 );
-			python << AppendTextForSingleProbeOperation( points[5].second, points[6].second, points[7].second.Z(false), points[8].second,
-										_T("1003"), _T("1004"), +1.0 * probe_radius, 0 );
-
-            // Now move to the centre of these two intersection points.
-            python << _T("comment(") << PythonString(_("Move back to the intersection points")) << _T(")\n");
-            python << _T("comment(") << PythonString(_("NOTE: We set the temporary origin because it was in effect when the values in these variables were established")) << _T(")\n");
-            python << _T("set_temporary_origin( x=0, y=0, z=0 )\n");
-            if (m_number_of_points == 2)
-            {
-                python << _T("rapid_to_midpoint(") << _T("x1='[#1001 + ") << probe_offset_x << _T("]',") << _T("x2='[#1003 + ") << probe_offset_x << _T("]')\n");
-            }
-            else
-            {
-                python << _T("rapid_to_midpoint(") << _T("x1='[#1001]',") << _T("x2='[#1003]')\n");
-            }
-            python << _T("remove_temporary_origin()\n");
-		} // End if - then
-		else
-		{
-			python << AppendTextForSingleProbeOperation( points[0].second, points[1].second, points[2].second.Z(false), points[3].second,
-									_T("1001"), _T("1002"), 0, -1.0 * probe_radius );
-			python << AppendTextForSingleProbeOperation( points[5].second, points[6].second, points[7].second.Z(false), points[8].second,
-									_T("1003"), _T("1004"), 0, +1.0 * probe_radius );
-
-            // Now move to the centre of these two intersection points.
-            python << _T("comment(") << PythonString(_("Move back to the intersection points")) << _T(")\n");
-            python << _T("comment(") << PythonString(_("NOTE: We set the temporary origin because it was in effect when the values in these variables were established")) << _T(")\n");
-            python << _T("set_temporary_origin( x=0, y=0, z=0 )\n");
-            if (m_number_of_points == 2)
-            {
-                python << _T("rapid_to_midpoint(") << _T("y1='[#1002 + ") << probe_offset_y << _T("]',") << _T("y2='[#1004 + ") << probe_offset_y << _T("]')\n");
-            }
-            else
-            {
-                python << _T("rapid_to_midpoint(") << _T("y1='[#1002]',") << _T("y2='[#1004]')\n");
-
-            }
-
-            python << _T("remove_temporary_origin()\n");
-		} // End if - else
-	} // End if - then
-	else
-	{
-	    // Direction == Inside
-
-		python << _T("comment(") << PythonString(_("This program assumes that the machine operator has jogged")) << _T(")\n");
-		python << _T("comment(") << PythonString(_("the machine to approximatedly the correct location")) << _T(")\n");
-		python << _T("comment(") << PythonString(_("immediately above the hole we are finding the centre of.")) << _T(")\n");
-		python << _T("comment(") << PythonString(_("This program then jogs down and probes out in two opposite directions")) << _T(")\n");
-		python << _T("comment(") << PythonString(_("looking for the workpiece")) << _T(")\n");
-
-		if ((m_alignment == eXAxis) || (m_number_of_points == 4))
-		{
-			python << AppendTextForSingleProbeOperation( points[0].second, points[1].second, points[2].second.Z(false), points[3].second,
-									_T("1001"), _T("1002"), +1.0 * probe_radius, 0 );
-			python << AppendTextForSingleProbeOperation( points[5].second, points[6].second, points[7].second.Z(false), points[8].second,
-									_T("1003"), _T("1004"), -1.0 * probe_radius, 0 );
-
-            // Now move to the centre of these two intersection points.
-            python << _T("comment(") << PythonString(_("Move back to the intersection points")) << _T(")\n");
-            python << _T("comment(") << PythonString(_("NOTE: We set the temporary origin because it was in effect when the values in these variables were established")) << _T(")\n");
-            python << _T("set_temporary_origin( x=0, y=0, z=0 )\n");
-            if (m_number_of_points == 2)
-            {
-                python << _T("rapid_to_midpoint(") << _T("x1='[#1001 + ") << probe_offset_x << _T("]',") << _T("x2='[#1003 + ") << probe_offset_x << _T("]')\n");
-            }
-            else
-            {
-                python << _T("rapid_to_midpoint(") << _T("x1='[#1001]',") << _T("x2='[#1003]')\n");
-            }
-
-            python << _T("remove_temporary_origin()\n");
-		} // End if - then
-		else
-		{
-			// eYAxis:
-			python << AppendTextForSingleProbeOperation( points[0].second, points[1].second, points[2].second.Z(false), points[3].second,
-									_T("1001"), _T("1002"), 0, +1.0 * probe_radius );
-			python << AppendTextForSingleProbeOperation( points[5].second, points[6].second, points[7].second.Z(false), points[8].second,
-									_T("1003"), _T("1004"), 0, -1.0 * probe_radius  );
-
-            // Now move to the centre of these two intersection points.
-            python << _T("comment(") << PythonString(_("Move back to the intersection points")) << _T(")\n");
-            python << _T("comment(") << PythonString(_("NOTE: We set the temporary origin because it was in effect when the values in these variables were established")) << _T(")\n");
-            python << _T("set_temporary_origin( x=0, y=0, z=0 )\n");
-            if (m_number_of_points == 2)
-            {
-                python << _T("rapid_to_midpoint(") << _T("y1='[#1002 + ") << probe_offset_y << _T("]',") << _T("y2='[#1004 + ") << probe_offset_y << _T("]')\n");
-            }
-            else
-            {
-                python << _T("rapid_to_midpoint(") << _T("y1='[#1002]',") << _T("y2='[#1004]')\n");
-            }
-
-            python << _T("remove_temporary_origin()\n");
-		} // End if - else
-	} // End if - else
-
-
-	if (m_number_of_points == 4)
-	{
 		if (m_direction == eOutside)
 		{
-			python << _T("comment(") << PythonString(_("This program assumes that the machine operator has jogged")) << _T(")\n");
-			python << _T("comment(") << PythonString(_("the machine to approximatedly the correct location")) << _T(")\n");
-			python << _T("comment(") << PythonString(_("immediately above the protrusion we are finding the centre of.")) << _T(")\n");
-			python << _T("comment(") << PythonString(_("This program then jogs out and down in two opposite directions")).c_str() << _T(")\n");
-			python << _T("comment(") << PythonString(_("before probing back towards the centre point looking for the")) << _T(")\n");
-			python << _T("comment(") << PythonString(_("protrusion.")) << _T(")\n");
+			if ((m_alignment == eXAxis) || (m_number_of_points == 4))
+			{
+				wxString axis(_T("x"));
 
-			python << AppendTextForSingleProbeOperation( points[10].second, points[11].second, points[12].second.Z(false), points[13].second,
-									_T("1005"), _T("1006"), 0, -1.0 * probe_radius );
-			python << AppendTextForSingleProbeOperation( points[15].second, points[16].second, points[17].second.Z(false), points[18].second,
-									_T("1007"), _T("1008"), 0, +1.0 * probe_radius );
+				python << AppendTextForSingleProbeOperation( points[0].second, points[1].second, points[2].second.Z(false), points[3].second,
+											Name(axis,_T("lower")), unused, -1.0 * probe_radius, 0 );
+				python << AppendTextForSingleProbeOperation( points[5].second, points[6].second, points[7].second.Z(false), points[8].second,
+											Name(axis,_T("upper")), unused, +1.0 * probe_radius, 0 );
+
+				variables.insert( Variable_t( axis, VariablePair_t(Name(axis,_T("lower")),Name(axis,_T("upper"))) ) );
+
+				if (pass == 1)
+				{
+					// Now move to the centre of these two intersection points.
+					python << _T("comment(") << PythonString(_("Move back to the intersection points")) << _T(")\n");
+					python << _T("set_temporary_origin( x=0, y=0, z=0 )\n");
+					python << _T("rapid_to_midpoint(") << axis << _T("1='[#") << Name(axis,_T("lower")) << _T("]',") << axis << _T("2='[#") << Name(axis,_T("upper")) << _T("]')\n");
+					python << _T("variable_set(id='<") << axis << _T("_pass_") << pass << _T("_offset>', value='[[[#") << Name(axis,_T("upper")) << _T(" - #") << Name(axis,_T("lower")) << _T("] / 2.0] + #") << Name(axis,_T("lower")) << _T("]')\n");
+					python << _T("remove_temporary_origin()\n");
+				}
+				else
+				{
+					// Remember how far away we were at this point.  We will aggregate all these offsets
+					// when we report our final probe results.
+					// #<x_pass_1_offset> = [[[#<x_upper> - #<x_lower>] / 2.0] + #<x_lower>]
+					python << _T("variable_set(id='<") << axis << _T("_pass_") << pass << _T("_offset>', value='[[[#") << Name(axis,_T("upper")) << _T(" - #") << Name(axis,_T("lower")) << _T("] / 2.0] + #") << Name(axis,_T("lower")) << _T("]')\n");
+				}
+			} // End if - then
+			else
+			{
+				wxString axis(_T("y"));
+
+				python << AppendTextForSingleProbeOperation( points[0].second, points[1].second, points[2].second.Z(false), points[3].second,
+										unused, Name(axis,_T("lower")), 0, -1.0 * probe_radius );
+				python << AppendTextForSingleProbeOperation( points[5].second, points[6].second, points[7].second.Z(false), points[8].second,
+										unused, Name(axis,_T("upper")), 0, +1.0 * probe_radius );
+
+				variables.insert( Variable_t( axis, VariablePair_t(Name(axis,_T("lower")),Name(axis,_T("upper"))) ) );
+
+				if (pass == 1)
+				{
+					// Now move to the centre of these two intersection points.
+					python << _T("comment(") << PythonString(_("Move back to the intersection points")) << _T(")\n");
+					python << _T("set_temporary_origin( x=0, y=0, z=0 )\n");
+					python << _T("rapid_to_midpoint(") << axis << _T("1='[#") << Name(axis,_T("lower")) << _T("]',") << axis << _T("2='[#") << Name(axis,_T("upper")) << _T("]')\n");
+					python << _T("variable_set(id='<") << axis << _T("_pass_") << pass << _T("_offset>', value='[[[#") << Name(axis,_T("upper")) << _T(" - #") << Name(axis,_T("lower")) << _T("] / 2.0] + #") << Name(axis,_T("lower")) << _T("]')\n");
+					python << _T("remove_temporary_origin()\n");
+				}
+				else
+				{
+					python << _T("variable_set(id='<") << axis << _T("_pass_") << pass << _T("_offset>', value='[[[#") << Name(axis,_T("upper")) << _T(" - #") << Name(axis,_T("lower")) << _T("] / 2.0] + #") << Name(axis,_T("lower")) << _T("]')\n");
+				}
+			} // End if - else
 		} // End if - then
 		else
 		{
-			python << _T("comment(") << PythonString(_("This program assumes that the machine operator has jogged")) << _T(")\n");
-			python << _T("comment(") << PythonString(_("the machine to approximatedly the correct location")) << _T(")\n");
-			python << _T("comment(") << PythonString(_("immediately above the hole we are finding the centre of.")) << _T(")\n");
-			python << _T("comment(") << PythonString(_("This program then jogs down and probes out in two opposite directions")) << _T(")\n");
-			python << _T("comment(") << PythonString(_("looking for the workpiece")) << _T(")\n");
+			// Direction == Inside
+			if ((m_alignment == eXAxis) || (m_number_of_points == 4))
+			{
+				wxString axis(_T("x"));
 
-			python << AppendTextForSingleProbeOperation( points[10].second, points[11].second, points[12].second.Z(false), points[13].second,
-									_T("1005"), _T("1006"), 0, +1.0 * probe_radius );
-			python << AppendTextForSingleProbeOperation( points[15].second, points[16].second, points[17].second.Z(false), points[18].second,
-									_T("1007"), _T("1008"), 0, -1.0 * probe_radius );
+				python << AppendTextForSingleProbeOperation( points[0].second, points[1].second, points[2].second.Z(false), points[3].second,
+										Name(axis,_T("upper")), unused, +1.0 * probe_radius, 0 );
+				python << AppendTextForSingleProbeOperation( points[5].second, points[6].second, points[7].second.Z(false), points[8].second,
+										Name(axis,_T("lower")), unused, -1.0 * probe_radius, 0 );
+
+				variables.insert( Variable_t( axis, VariablePair_t(Name(axis,_T("lower")),Name(axis,_T("upper"))) ) );
+
+				if (pass == 1)
+				{
+					// Now move to the centre of these two intersection points.
+					python << _T("comment(") << PythonString(_("Move back to the intersection points")) << _T(")\n");
+					python << _T("set_temporary_origin( x=0, y=0, z=0 )\n");
+					python << _T("rapid_to_midpoint(") << axis << _T("1='[#") << Name(axis,_T("lower")) << _T("]',") << axis << _T("2='[#") << Name(axis,_T("upper")) << _T("]')\n");
+					python << _T("variable_set(id='<") << axis << _T("_pass_") << pass << _T("_offset>', value='[[[#") << Name(axis,_T("upper")) << _T(" - #") << Name(axis,_T("lower")) << _T("] / 2.0] + #") << Name(axis,_T("lower")) << _T("]')\n");
+					python << _T("remove_temporary_origin()\n");
+				}
+				else
+				{
+					python << _T("variable_set(id='<") << axis << _T("_pass_") << pass << _T("_offset>', value='[[[#") << Name(axis,_T("upper")) << _T(" - #") << Name(axis,_T("lower")) << _T("] / 2.0] + #") << Name(axis,_T("lower")) << _T("]')\n");
+				}
+			} // End if - then
+			else
+			{
+				wxString axis(_T("y"));
+
+				// eYAxis:
+				python << AppendTextForSingleProbeOperation( points[0].second, points[1].second, points[2].second.Z(false), points[3].second,
+										unused, Name(axis,_T("upper")), 0, +1.0 * probe_radius );
+				python << AppendTextForSingleProbeOperation( points[5].second, points[6].second, points[7].second.Z(false), points[8].second,
+										unused, Name(axis,_T("lower")), 0, -1.0 * probe_radius  );
+
+				variables.insert( Variable_t( axis, VariablePair_t(Name(axis,_T("lower")),Name(axis,_T("upper"))) ) );
+
+				// Now move to the centre of these two intersection points.
+				if (pass == 1)
+				{
+					python << _T("comment(") << PythonString(_("Move back to the intersection points")) << _T(")\n");
+					python << _T("set_temporary_origin( x=0, y=0, z=0 )\n");
+					python << _T("rapid_to_midpoint(") << axis << _T("1='[#") << Name(axis,_T("lower")) << _T("]',") << axis << _T("2='[#") << Name(axis,_T("upper")) << _T("]')\n");
+					python << _T("variable_set(id='<") << axis << _T("_pass_") << pass << _T("_offset>', value='[[[#") << Name(axis,_T("upper")) << _T(" - #") << Name(axis,_T("lower")) << _T("] / 2.0] + #") << Name(axis,_T("lower")) << _T("]')\n");
+					python << _T("remove_temporary_origin()\n");
+				}
+				else
+				{
+					python << _T("variable_set(id='<") << axis << _T("_pass_") << pass << _T("_offset>', value='[[[#") << Name(axis,_T("upper")) << _T(" - #") << Name(axis,_T("lower")) << _T("] / 2.0] + #") << Name(axis,_T("lower")) << _T("]')\n");
+				}
+			} // End if - else
 		} // End if - else
 
-		// Now move to the centre of these two intersection points.
-		python << _T("comment(") << PythonString(_("Move back to the intersection points")) << _T(")\n");
-		python << _T("comment(") << PythonString(_("NOTE: We set the temporary origin because it was in effect when the values in these variables were established")) << _T(")\n");
-		python << _T("set_temporary_origin( x=0, y=0, z=0 )\n");
-		python << _T("rapid_to_midpoint(") << _T("x1='[#1001 + ") << probe_offset_x << _T("]',") << _T("x2='[#1003 + ") << probe_offset_x << _T("]')\n");
-		python << _T("rapid_to_midpoint(") << _T("y1='[#1006 + ") << probe_offset_y << _T("]',") << _T("y2='[#1008 + ") << probe_offset_y << _T("]')\n");
-		python << _T("remove_temporary_origin()\n");
 
-		python << _T("report_probe_results( ")
-				<< _T("x1='[[[[#1001-#1003]/2.0]+#1003] + ") << probe_offset_x << _T("]', ")
-				<< _T("y1='[[[[#1006-#1008]/2.0]+#1008] + ") << probe_offset_y << _T("]', ");
-		python << _T("xml_file_name=") << PythonString(this->GetOutputFileName( _T(".xml"), true )) << _T(")\n");
-	} // End if - then
+		if (m_number_of_points == 4)
+		{
+			if (m_direction == eOutside)
+			{
+				wxString axis(_T("y"));
+
+				python << AppendTextForSingleProbeOperation( points[10].second, points[11].second, points[12].second.Z(false), points[13].second,
+										unused, Name(axis,_T("lower")), 0, -1.0 * probe_radius );
+				python << AppendTextForSingleProbeOperation( points[15].second, points[16].second, points[17].second.Z(false), points[18].second,
+										unused, Name(axis,_T("upper")), 0, +1.0 * probe_radius );
+
+				variables.insert( Variable_t( axis, VariablePair_t(Name(axis,_T("lower")),Name(axis,_T("upper"))) ) );
+
+				if (pass == 1)
+				{
+					python << _T("comment(") << PythonString(_("Move back to the intersection points")) << _T(")\n");
+					python << _T("set_temporary_origin( x=0, y=0, z=0 )\n");
+					python << _T("rapid_to_midpoint(") << axis << _T("1='[#") << Name(axis,_T("lower")) << _T("]',") << axis << _T("2='[#") << Name(axis,_T("upper")) << _T("]')\n");
+					python << _T("variable_set(id='<") << axis << _T("_pass_") << pass << _T("_offset>', value='[[[#") << Name(axis,_T("upper")) << _T(" - #") << Name(axis,_T("lower")) << _T("] / 2.0] + #") << Name(axis,_T("lower")) << _T("]')\n");
+					python << _T("remove_temporary_origin()\n");
+				}
+				else
+				{
+					python << _T("variable_set(id='<") << axis << _T("_pass_") << pass << _T("_offset>', value='[[[#") << Name(axis,_T("upper")) << _T(" - #") << Name(axis,_T("lower")) << _T("] / 2.0] + #") << Name(axis,_T("lower")) << _T("]')\n");
+				}
+			} // End if - then
+			else
+			{
+				wxString axis(_T("y"));
+
+				python << AppendTextForSingleProbeOperation( points[10].second, points[11].second, points[12].second.Z(false), points[13].second,
+										unused, Name(axis,_T("upper")), 0, +1.0 * probe_radius );
+				python << AppendTextForSingleProbeOperation( points[15].second, points[16].second, points[17].second.Z(false), points[18].second,
+										unused, Name(axis,_T("lower")), 0, -1.0 * probe_radius );
+
+				variables.insert( Variable_t( axis, VariablePair_t(Name(axis,_T("lower")),Name(axis,_T("upper"))) ) );
+
+				if (pass == 1)
+				{
+					python << _T("comment(") << PythonString(_("Move back to the intersection points")) << _T(")\n");
+					python << _T("set_temporary_origin( x=0, y=0, z=0 )\n");
+					python << _T("rapid_to_midpoint(") << axis << _T("1='[#") << Name(axis,_T("lower")) << _T("]',") << axis << _T("2='[#") << Name(axis,_T("upper")) << _T("]')\n");
+					python << _T("variable_set(id='<") << axis << _T("_pass_") << pass << _T("_offset>', value='[[[#") << Name(axis,_T("upper")) << _T(" - #") << Name(axis,_T("lower")) << _T("] / 2.0] + #") << Name(axis,_T("lower")) << _T("]')\n");
+					python << _T("remove_temporary_origin()\n");
+				}
+				else
+				{
+					python << _T("variable_set(id='<") << axis << _T("_pass_") << pass << _T("_offset>', value='[[[#") << Name(axis,_T("upper")) << _T(" - #") << Name(axis,_T("lower")) << _T("] / 2.0] + #") << Name(axis,_T("lower")) << _T("]')\n");
+				}
+			} // End if - else
+		} // End if - then
+	} // End for
+
+	// Now move to the centre of these two intersection points.
+	python << _T("comment(") << PythonString(_("Move back to the intersection points")) << _T(")\n");
+	python << _T("set_temporary_origin( x=0, y=0, z=0 )\n");
+	std::set<AxisName_t> axes;
+	for (Variables_t::iterator itVariable = variables.begin(); itVariable != variables.end(); itVariable++)
+	{
+		double offset;
+		if (AXIS(itVariable) == _T("x"))
+		{
+			offset = probe_offset_x;
+		}
+		else
+		{
+			offset = probe_offset_y;
+		}
+
+		python << _T("rapid_to_midpoint(") << AXIS(itVariable) << _T("1='[#") << FIRST_NAME(itVariable) << _T(" + [") << offset << _T("]]',") << AXIS(itVariable) << _T("2='[#") << SECOND_NAME(itVariable) << _T(" + [") << offset << _T("]]')\n");
+		python << _T("variable_set(id='<") << AXIS(itVariable) << _T("_width>', value='[#") << SECOND_NAME(itVariable) << _T(" - #") << FIRST_NAME(itVariable) << _T("]')\n");
+		python << _T("debug_message('") << AXIS(itVariable) << _T(" axis probing measured #<") << AXIS(itVariable) << _T("_width>')\n");
+
+		axes.insert( AXIS(itVariable) );
+	}
+	python << _T("remove_temporary_origin()\n");
+
+	python << _T("report_probe_results(");
+	for (std::set<AxisName_t>::iterator itAxis = axes.begin(); itAxis != axes.end(); itAxis++)
+	{
+		python << *itAxis << _T("1='[#<") << *itAxis << _T("_pass_1_offset> + #<") << *itAxis << _T("_pass_2_offset>]',");
+	}
+	python << _T("xml_file_name=") << PythonString(this->GetOutputFileName( _T(".xml"), true )) << _T(")\n");
 
 	return(python);
 }
@@ -250,105 +313,17 @@ Python CProbe_Grid::AppendTextToProgram( CMachineState *pMachineState )
 
 	python << CSpeedOp::AppendTextToProgram( pMachineState );
 
-	// We're going to be working in relative coordinates based on the assumption
-	// that the operator has first jogged the machine to the approximate starting point.
-	int variable = 1001;
-	bool first_probed_point = true;
-	std::list<gp_Pnt> probed_points;
-
-	python << _T("open_log_file(xml_file_name=") << PythonString(this->GetOutputFileName( _T(".xml"), true ).c_str()).c_str() << _T(")\n");
-	python << _T("log_message('<POINTS>')\n");
-
-	CProbing::PointsList_t points = GetPoints();
-	for (CProbing::PointsList_t::const_iterator l_itPoint = points.begin(); l_itPoint != points.end(); l_itPoint++)
-	{
-		switch (l_itPoint->first)
-		{
-		case eRapid:
-		case eFeed:
-			break;
-
-		case eProbe:
-			{
-				// We've already moved to this point ourselves so tell the AppendTextForDownwardProbingOperation()
-				// method that the X,Y coordinate is 0,0.  We're only interested in the Z point anyway and this
-				// will avoid extra rapid movements.
-				wxString var;
-				var << variable;
-
-				python << AppendTextForDownwardProbingOperation( PythonString(l_itPoint->second.X(true)).c_str(), PythonString(l_itPoint->second.Y(true)).c_str(), m_depth, var.c_str() );
-                probed_points.push_back( gp_Pnt( l_itPoint->second.X(true), l_itPoint->second.Y(true), variable ) );
-
-                if (! m_for_fixture_measurement)
-                {
-                    python << _T("log_coordinate(x='[") << l_itPoint->second.X(true) << _T("]', ")
-                                        _T("y='[") << l_itPoint->second.Y(true) << _T("]', ")
-                                        _T("z='[#") << var.c_str() << _T("]')\n");
-                }
-
-                first_probed_point = false;
-                variable++;
-			}
-			break;
-
-		case eEndOfData:
-			break;
-		} // End switch
-
-
-	} // End for
-
-    if (m_for_fixture_measurement)
+    if (! m_for_fixture_measurement)
     {
-        // Now report on the sets of probed points along each axis.
-        gp_Pnt top_left(*probed_points.begin());
-        gp_Pnt top_right(*probed_points.begin());
-        gp_Pnt bottom_left(*probed_points.begin());
-        gp_Pnt bottom_right(*probed_points.begin());
-
-        for (std::list<gp_Pnt>::iterator itPoint = probed_points.begin(); itPoint != probed_points.end(); itPoint++)
-        {
-           if ((itPoint->X() <= top_left.X()) && (itPoint->Y() >= top_left.Y())) top_left = *itPoint;
-           if ((itPoint->X() >= top_right.X()) && (itPoint->Y() >= top_right.Y())) top_right = *itPoint;
-           if ((itPoint->X() <= bottom_left.X()) && (itPoint->Y() <= bottom_left.Y())) bottom_left = *itPoint;
-           if ((itPoint->X() >= bottom_right.X()) && (itPoint->Y() <= bottom_right.Y())) bottom_right = *itPoint;
-        }
-
-        // Log the longest two edges along the X and Y axes in a form that will be suitable
-        // for reading back into the Fixture object.
-        python << _T("log_coordinate( ")
-            << _T("x='[") << bottom_left.X() << _T("]', ")
-            << _T("y='[") << bottom_left.Y() << _T("]', ")
-            << _T("z='[#") << bottom_left.Z() << _T("]')\n");
-
-        python << _T("log_coordinate( ")
-            << _T("x='[") << top_left.X() << _T("]', ")
-            << _T("y='[") << top_left.Y() << _T("]', ")
-            << _T("z='[#") << top_left.Z() << _T("]')\n");
-
-        python << _T("log_coordinate( ")
-            << _T("x='[") << top_left.X() - bottom_left.X() << _T("]', ")
-            << _T("y='[") << top_left.Y() - bottom_left.Y() << _T("]', ")
-            << _T("z='0.0' )\n");
-
-        python << _T("log_coordinate( ")
-            << _T("x='[") << bottom_left.X() << _T("]', ")
-            << _T("y='[") << bottom_left.Y() << _T("]', ")
-            << _T("z='[#") << bottom_left.Z() << _T("]')\n");
-
-        python << _T("log_coordinate( ")
-            << _T("x='[") << bottom_right.X() << _T("]', ")
-            << _T("y='[") << bottom_right.Y() << _T("]', ")
-            << _T("z='[#") << bottom_right.Z() << _T("]')\n");
-
-        python << _T("log_coordinate( ")
-            << _T("x='[") << bottom_right.X() - bottom_left.X() << _T("]', ")
-            << _T("y='[") << bottom_right.Y() - bottom_left.Y() << _T("]', ")
-            << _T("z='0.0' )\n");
+        python << _T("probe_grid(x_increment=") << m_distance / theApp.m_program->m_units
+                << _T(", x_count=") << m_num_x_points
+                << _T(", y_increment=") << m_distance / theApp.m_program->m_units
+                << _T(", y_count=") << m_num_y_points
+                << _T(", z_safety=0.0")
+                << _T(", z_probe=") << (m_depth * -1.0) / theApp.m_program->m_units
+                << _T(", feed_rate=") << m_speed_op_params.m_vertical_feed_rate
+                << _T(", filename=") << PythonString(this->GetOutputFileName( _T(".xml"), true ).c_str()).c_str() << _T(")\n");
     }
-
-    python << _T("log_message('</POINTS>')\n");
-    python << _T("close_log_file()\n");
 
 	return(python);
 }
@@ -357,7 +332,6 @@ Python CProbe_Grid::AppendTextToProgram( CMachineState *pMachineState )
 
 const wxBitmap &CProbing::GetIcon()
 {
-	if(!m_active)return GetInactiveIcon();
 	static wxBitmap* icon = NULL;
 	if(icon == NULL)icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/probe.png")));
 	return *icon;
@@ -1343,9 +1317,9 @@ void CProbe_Centre::WriteXML(TiXmlNode *root)
 	TiXmlElement * element = heeksCAD->NewXMLElement( Ttc(GetTypeString()) );
 	heeksCAD->LinkXMLEndChild( root,  element );
 
-	element->SetAttribute( "direction", m_direction);
+	element->SetAttribute( "direction", int(m_direction));
 	element->SetAttribute( "number_of_points", m_number_of_points);
-	element->SetAttribute( "alignment", m_alignment);
+	element->SetAttribute( "alignment", int(m_alignment));
 
 	WriteBaseXML(element);
 }
@@ -1355,9 +1329,9 @@ HeeksObj* CProbe_Centre::ReadFromXMLElement(TiXmlElement* element)
 {
 	CProbe_Centre* new_object = new CProbe_Centre();
 
-	if (element->Attribute("direction")) new_object->m_direction = atoi(element->Attribute("direction"));
+	if (element->Attribute("direction")) new_object->m_direction = eProbeDirection_t(atoi(element->Attribute("direction")));
 	if (element->Attribute("number_of_points")) new_object->m_number_of_points = atoi(element->Attribute("number_of_points"));
-	if (element->Attribute("alignment")) new_object->m_alignment = atoi(element->Attribute("alignment"));
+	if (element->Attribute("alignment")) new_object->m_alignment = CProbing::eAlignment_t(atoi(element->Attribute("alignment")));
 
 	new_object->ReadBaseXML(element);
 
@@ -1639,7 +1613,7 @@ public:
 
 		python << m_pThis->GeneratePythonPreamble();
 
-		CMachineState machine(&(theApp.m_program->m_machine), CFixture(NULL, CFixture::G54, false, 0.0 ));
+		CMachineState machine(&(theApp.m_program->m_machine), CFixture(NULL, CFixture::G54 ));
 		python << m_pThis->AppendTextToProgram( &machine );
 
 		python << _T("program_end()\n");
@@ -1692,7 +1666,7 @@ public:
 
 		python << m_pThis->GeneratePythonPreamble();
 
-		CMachineState machine(&(theApp.m_program->m_machine), CFixture(NULL, CFixture::G54, false, 0.0 ));
+		CMachineState machine(&(theApp.m_program->m_machine), CFixture(NULL, CFixture::G54 ));
 		python << m_pThis->AppendTextToProgram( &machine );
 
 		python << _T("program_end()\n");
@@ -1746,7 +1720,7 @@ public:
 
 		python << m_pThis->GeneratePythonPreamble();
 
-		CMachineState machine(&(theApp.m_program->m_machine), CFixture(NULL, CFixture::G54, false, 0.0 ));
+		CMachineState machine(&(theApp.m_program->m_machine), CFixture(NULL, CFixture::G54 ));
 		python << m_pThis->AppendTextToProgram( &machine );
 
 		python << _T("program_end()\n");

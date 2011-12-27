@@ -23,6 +23,7 @@
 #include "MachineState.h"
 #include "Program.h"
 #include "AttachOp.h"
+#include "CDouble.h"
 
 #include <sstream>
 #include <string>
@@ -299,7 +300,7 @@ void CToolParams::set_initial_values()
 	config.Read(_T("gradient"), &m_gradient, 0.0);  // Straight plunge by default.
 
 	// The following are ONLY for tapping tools
-	config.Read(_T("m_direction"), &m_direction, 0);  // default to right-hand tap
+	config.Read(_T("m_direction"), (int *) &m_direction, eRightHandThread );  // default to right-hand tap
 	config.Read(_T("m_pitch"), &m_pitch, 1.0);        // mm/rev, this would be for an M6 tap
 
 	// The following are ONLY for centre-drill tools
@@ -348,7 +349,7 @@ void CToolParams::write_values_to_config()
 	config.Write(_T("gradient"), m_gradient);
 
 	// The following are ONLY for tapping tools
-	config.Write(_T("m_direction"), m_direction);
+	config.Write(_T("m_direction"), int(m_direction));
 	config.Write(_T("m_pitch"), m_pitch);
 
 	// The following are ONLY for centre-drill tools
@@ -395,7 +396,7 @@ static void on_set_diameter(double value, HeeksObj* object)
 
 static void on_set_direction(int value, HeeksObj* object)
 {
-	((CTool*)object)->m_params.m_direction = value;
+	((CTool*)object)->m_params.m_direction = CToolParams::eTappingDirection_t(value);
 	((CTool*)object)->ResetTitle();
 	object->KillGLLists();
 	heeksCAD->Repaint();
@@ -524,6 +525,7 @@ double CToolParams::ReasonableGradient( const eToolType type ) const
 	    case CToolParams::eCentreDrill:
 		case CToolParams::eDrill:
 		case CToolParams::eTapTool:
+		case CToolParams::eBoringHead:
 				return(0.0);
 
         case CToolParams::eSlotCutter:
@@ -566,6 +568,14 @@ void CTool::ResetParametersToReasonableValues()
 	switch(m_params.m_type)
 	{
 		case CToolParams::eDrill:
+				m_params.m_corner_radius = 0;
+				m_params.m_flat_radius = 0;
+				m_params.m_cutting_edge_angle = 59;
+				m_params.m_cutting_edge_height = m_params.m_diameter * 3.0;
+				ResetTitle();
+				break;
+
+		case CToolParams::eBoringHead:
 				m_params.m_corner_radius = 0;
 				m_params.m_flat_radius = 0;
 				m_params.m_cutting_edge_angle = 59;
@@ -652,7 +662,7 @@ void CTool::ResetParametersToReasonableValues()
 		                m_params.m_tool_length_offset = (5 * m_params.m_diameter);
 				m_params.m_automatically_generate_title = 1;
 				m_params.m_diameter = 6.0;
-				m_params.m_direction = 0;
+				m_params.m_direction = CToolParams::eRightHandThread;
 				m_params.m_pitch = 1.0;
 				m_params.m_cutting_edge_height = m_params.m_diameter * 3.0;
 				ResetTitle();
@@ -858,7 +868,7 @@ void CTool::SelectTapFromStandardSizes(const tap_sizes_t *tap_sizes)
         {
             m_params.m_diameter = tap_sizes[i].diameter;
             m_params.m_pitch = tap_sizes[i].pitch;
-            m_params.m_direction = 0;    // Right hand thread.
+            m_params.m_direction = CToolParams::eRightHandThread;    // Right hand thread.
 
             ResetTitle();
             heeksCAD->RefreshProperties();
@@ -1030,8 +1040,14 @@ void CToolParams::GetProperties(CTool* parent, std::list<Property *> *list)
 		// The following are ONLY for tapping tools
 		{
 			std::list< wxString > choices;
-			choices.push_back(_("right hand"));
-			choices.push_back(_("left hand"));
+			for (eTappingDirection_t option = eRightHandThread; option <= eLeftHandThread; option = eTappingDirection_t(int(option + 1)))
+			{
+				wxString value;
+				value << option;
+				choices.push_back(value);
+			}
+			// choices.push_back(_("right hand"));
+			// choices.push_back(_("left hand"));
 			int choice = int(m_direction);
 			list->push_back(new PropertyChoice(_("Tap direction"), choices, choice, parent, on_set_direction));
 		}
@@ -1089,7 +1105,7 @@ void CToolParams::WriteXMLAttributes(TiXmlNode *root)
 	element->SetDoubleAttribute( "gradient", m_gradient);
 
 	element->SetDoubleAttribute( "pitch", m_pitch);
-	element->SetAttribute( "direction", m_direction);
+	element->SetAttribute( "direction", int(m_direction));
 
 	element->SetAttribute( "centre_drill_size", Ttc(m_size.c_str()));
 }
@@ -1141,7 +1157,7 @@ void CToolParams::ReadParametersFromXMLElement(TiXmlElement* pElem)
 	{
 	    m_gradient = ReasonableGradient(m_type);
 	}
-	if (pElem->Attribute("direction")) pElem->Attribute("direction", &m_direction);
+	if (pElem->Attribute("direction")) pElem->Attribute("direction", (int *) &m_direction);
 	if (pElem->Attribute("pitch")) pElem->Attribute("pitch", &m_pitch);
 
 	if (pElem->Attribute("centre_drill_size")) m_size.assign(Ctt(pElem->Attribute( "centre_drill_size" )));
@@ -1280,6 +1296,7 @@ bool CTool::CanAddTo(HeeksObj* owner)
 const wxBitmap &CTool::GetIcon()
 {
 	switch(m_params.m_type){
+		case CToolParams::eBoringHead:
 		case CToolParams::eDrill:
 			{
 				static wxBitmap* drillIcon = NULL;
@@ -1554,6 +1571,12 @@ wxString CTool::GenerateMeaningfulName() const
 {
 	wxString name;
 
+	if (m_params.m_type == CToolParams::eBoringHead)
+	{
+	    name << _("Boring head");
+	    return(name);
+	}
+
 	if (m_params.m_type == CToolParams::eCentreDrill)
 	{
 		centre_drill_t *pCentreDrill = this->CentreDrillDefinition(m_params.m_size);
@@ -1592,12 +1615,21 @@ wxString CTool::GenerateMeaningfulName() const
 			{
 				name << _T("(") << fraction.c_str() << _T("\") ");
 			}
+			else
+			{
+				wxString pcb = PrintedCircuitBoardRepresentation( m_params.m_diameter / PROGRAM->m_units, PROGRAM->m_units );
+				if (pcb.Len() > 0)
+				{
+					name << _T("(") << pcb << _T(") ");
+				}
+			}
 		} // End if - then
 		else
 		{
 			// We're using inches.  Find a fractional representation if one matches.
 			wxString fraction = FractionalRepresentation(m_params.m_diameter / PROGRAM->m_units);
 			wxString guage = GuageNumberRepresentation( m_params.m_diameter / PROGRAM->m_units, PROGRAM->m_units );
+			wxString pcb = PrintedCircuitBoardRepresentation( m_params.m_diameter / PROGRAM->m_units, PROGRAM->m_units );
 
 			if (fraction.Len() > 0)
 			{
@@ -1619,7 +1651,14 @@ wxString CTool::GenerateMeaningfulName() const
 			    }
 			    else
 			    {
-			        name << m_params.m_diameter / PROGRAM->m_units << _T(" inch ");
+					if (pcb.Len() > 0)
+					{
+						name << pcb << _T(" ");
+					}
+					else
+					{
+						name << m_params.m_diameter / PROGRAM->m_units << _T(" inch ");
+					}
 			    }
 			}
 		} // End if - else
@@ -1731,8 +1770,8 @@ wxString CTool::GenerateMeaningfulName() const
                 }
 
                 name << (_(" Tap Tool"));
-                if (m_params.m_direction == 1) {
-                    name << (_(", left hand"));
+                if (m_params.m_direction == CToolParams::eLeftHandThread) {
+                    name << _(", ") << m_params.m_direction;
                 }
             }
 		  break;
@@ -2468,6 +2507,33 @@ void CTool::ImportProbeCalibrationData( const wxString & probed_points_xml_file_
 		} // End if - then
 	} // End if - else
 } // End ImportProbeCalibrationData() method
+
+
+
+
+/* static */ wxString CTool::PrintedCircuitBoardRepresentation( const double size, const double units )
+{
+    double tolerance = heeksCAD->GetTolerance();
+	CDouble diameter = size;
+
+	// Only look up to 200 thousanths of an inch
+	if (diameter < (200.0 * 25.4 / 1000.0))
+	{
+		for (int mil=1; mil<=200; mil++)
+		{
+			CDouble size_in_mil((mil / 1000.0) * 25.4);
+			if (diameter == size_in_mil)
+			{
+				wxString result;
+				result << mil << _(" thou");
+				return(result);
+			}
+		}
+	}
+
+    return(_T(""));
+} // End PrintedCircuitBoardRepresentation() method
+
 
 
 /* static */ wxString CTool::GuageNumberRepresentation( const double size, const double units )

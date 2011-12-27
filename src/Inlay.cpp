@@ -278,7 +278,6 @@ void CInlayParams::ReadParametersFromXMLElement(TiXmlElement* pElem)
 
 const wxBitmap &CInlay::GetIcon()
 {
-	if(!m_active)return GetInactiveIcon();
 	static wxBitmap* icon = NULL;
 	if(icon == NULL)icon = new wxBitmap(wxImage(theApp.GetResFolder() + _T("/icons/drilling.png")));
 	return *icon;

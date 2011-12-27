@@ -276,11 +276,14 @@ class Creator(nc.Creator):
     ############################################################################
     ##  Tools
 
-    def tool_change(self, id):
+    def tool_change(self, id, description=None):
 	if self.tool_length_compenstation_enabled:
            self.write_blocknum()
            self.write( self.DISABLE_TOOL_LENGTH_COMPENSATION() + '\n' )
 	   self.tool_length_compenstation_enabled = False
+
+	if description != None:
+		self.message(description)
 
         self.write_blocknum()
         self.write(self.SPACE() + (self.TOOL() % id) + '\n')
@@ -705,6 +708,127 @@ class Creator(nc.Creator):
     def profile(self):
         pass
 
+    def boring(self, x=None, y=None, z=None, depth=None, standoff=None, dwell=None, retract_mode=None, spindle_mode=None, clearance_height=None):
+    	"""
+	The boring routine supports
+		G85 - Boring, no dwell, feed out.
+		G86 - Boring, spindle stop, rapid out.
+		G89 - Boring, with dwell, feed out
+    
+	The x,y,z values are INITIAL locations (above the hole to be made.  This is in contrast to
+	the Z value used in the G8[1-3] cycles where the Z value is that of the BOTTOM of the hole.
+	Instead, this routine combines the Z value and the depth value to determine the bottom of
+	the hole.
+	The standoff value is the distance up from the 'z' value (normally just above the surface) where the bit retracts
+	to in order to clear the swarf.  This combines with 'z' to form the 'R' value in the G8[1-3] cycles.
+    
+	The peck_depth value is the incremental depth (Q value) that tells the peck drilling
+	cycle how deep to go on each peck until the full depth is achieved.
+   
+	NOTE: This routine forces the mode to absolute mode so that the values  passed into
+	the G8[1-3] cycles make sense.  I don't know how to find the mode to revert it so I won't
+	revert it.  I must set the mode so that I can be sure the values I'm passing in make
+	sense to the end-machine.
+	"""
+
+	if (standoff == None):        
+		# This is a bad thing.  All the boring cycles need a retraction (and starting) height.        
+		return
+
+	if (clearance_height == None):
+		clearance_height = standoff
+           
+	if (z == None): 
+		return    # We need a Z value as well.  This input parameter represents the top of the hole
+
+	# Set the retraction point to the 'standoff' distance above the starting z height.        
+	retract_height = z + standoff
+
+	self.rapid(x=x,y=y)
+	self.rapid(z=standoff)
+	
+	self.write_preps()
+	self.write_blocknum()
+        
+	if (dwell == None) or (dwell == 0):
+		# No dwell.
+
+		if (spindle_mode == 0):
+			# spindle stop
+			if (retract_mode == 0):
+				# rapid retraction
+				self.write('G86' + self.SPACE())
+			else:
+				# feed retract
+				self.write('G85' + self.SPACE())
+		else:
+			# spindle run mode.
+			if (retract_mode == 0):
+				# rapid retraction
+				self.write('G85' + self.SPACE())
+			else:
+				# feed retract
+				self.write('G85' + self.SPACE())
+
+	else:
+		# With dwell.
+		if (spindle_mode == 0):
+			# spindle stop
+
+			if (retract_mode == 0):
+				# rapid retraction
+				self.write('G86' + self.SPACE())
+			else:
+				# feed retract
+				self.write('G89' + self.SPACE())
+		else:
+			# spindle run mode.
+
+			if (retract_mode == 0):
+				# rapid retraction
+				self.write('G85' + self.SPACE())
+			else:
+				# feed retract
+				self.write('G89' + self.SPACE())
+
+                self.write( 'P' + (self.fmt.string(dwell)) + self.SPACE())
+
+        if (x != None):        
+            dx = x - self.x        
+            self.write(self.SPACE() + self.X() + (self.fmt.string(x)))        
+            self.x = x 
+       
+        if (y != None):        
+            dy = y - self.y        
+            self.write(self.SPACE() + self.Y() + (self.fmt.string(y)))        
+            self.y = y
+                      
+        dz = (z + standoff) - self.z # In the end, we will be standoff distance above the z value passed in.
+
+        if self.drill_modal:
+            if z != self.prev_z:
+                self.write(self.SPACE() + self.Z() + (self.fmt.string(z - depth)))
+                self.prev_z=z
+        else:             
+            self.write(self.SPACE() + self.Z() + (self.fmt.string(z - depth)))    # This is the 'z' value for the bottom of the hole.
+            self.z = (z + standoff)            # We want to remember where z is at the end (at the top of the hole)
+
+        if self.drill_modal:
+            if self.prev_retract  != self.RETRACT(self.fmt, retract_height) :
+                self.write(self.SPACE() + self.RETRACT(self.fmt, retract_height))               
+                self.prev_retract = self.RETRACT(self.fmt, retract_height)
+        else:              
+            self.write(self.SPACE() + self.RETRACT(self.fmt, retract_height))
+           
+        self.write_feedrate()
+        self.write_spindle()            
+        self.write_misc()    
+        self.write('\n')
+       
+	self.rapid(z=clearance_height)
+
+
+
     # The drill routine supports drilling (G81), drilling with dwell (G82) and peck drilling (G83).
     # The x,y,z values are INITIAL locations (above the hole to be made.  This is in contrast to
     # the Z value used in the G8[1-3] cycles where the Z value is that of the BOTTOM of the hole.
@@ -794,7 +918,7 @@ class Creator(nc.Creator):
     # G33.1 tapping with EMC for now
     # unsynchronized (chuck) taps NIY (tap_mode = 1)
     
-    def tap(self, x=None, y=None, z=None, zretract=None, depth=None, standoff=None, dwell_bottom=None, pitch=None, stoppos=None, spin_in=None, spin_out=None, tap_mode=None, direction=None):
+    def tap(self, x=None, y=None, z=None, zretract=None, depth=None, standoff=None, dwell_bottom=None, pitch=None, stoppos=None, spin_in=None, spin_out=None, tap_mode=None, direction=None, clearance_height=None):
         # mystery parameters: 
         # zretract=None, dwell_bottom=None,pitch=None, stoppos=None, spin_in=None, spin_out=None):
         # I dont see how to map these to EMC Gcode
@@ -812,6 +936,9 @@ class Creator(nc.Creator):
         if (tap_mode != 0):
                 raise "only rigid tapping currently supported"
 
+	if (clearance_height == None):
+		clearance_height = standoff
+
         self.write_preps()
         self.write_blocknum()				
         self.write_spindle()
@@ -820,11 +947,10 @@ class Creator(nc.Creator):
         # rapid to starting point; z first, then x,y iff given
 
         # Set the retraction point to the 'standoff' distance above the starting z height.		
-        retract_height = z + standoff		
+        retract_height = z + standoff
 
         # unsure if this is needed:
-        if self.z != retract_height:
-                        self.rapid(z = retract_height)
+	self.rapid(z = clearance_height)
 
         # then continue to x,y if given
         if (x != None) or (y != None):
@@ -832,13 +958,15 @@ class Creator(nc.Creator):
                         self.write(self.RAPID() )		   
 
                         if (x != None):		
-                                        self.write(self.X() + self.fmt.string(x))		
+                                        self.write(self.X() + self.fmt.string(x) + self.SPACE())
                                         self.x = x 
 
                         if (y != None):		
-                                        self.write(self.Y() + self.fmt.string(y))		
+                                        self.write(self.Y() + self.fmt.string(y) + self.SPACE())		
                                         self.y = y
                         self.write('\n')
+
+	self.rapid(z = retract_height)
 
         self.write_blocknum()				
         self.write( self.TAP() )
@@ -889,7 +1017,12 @@ class Creator(nc.Creator):
     # into the 'intersection variable' variables.  Finally the machine moves back to the
     # original location.  This is important so that the results of multiple calls to this
     # routine may be compared meaningfully.
-    def probe_single_point(self, point_along_edge_x=None, point_along_edge_y=None, depth=None, retracted_point_x=None, retracted_point_y=None, destination_point_x=None, destination_point_y=None, intersection_variable_x=None, intersection_variable_y=None, probe_offset_x_component=None, probe_offset_y_component=None ):
+    def probe_single_point(self, \
+				point_along_edge_x=None, point_along_edge_y=None, depth=None, \
+				retracted_point_x=None, retracted_point_y=None, \
+				destination_point_x=None, destination_point_y=None, \
+				intersection_variable_x=None, intersection_variable_y=None, \
+				probe_offset_x_component=None, probe_offset_y_component=None ):
         self.write_blocknum()
         self.write(self.SPACE() + (self.SET_TEMPORARY_COORDINATE_SYSTEM() + (' X 0 Y 0 Z 0') + ('\t(Temporarily make this the origin)\n')))
 
@@ -904,15 +1037,12 @@ class Creator(nc.Creator):
 
         self.write_blocknum()
         self.write((self.PROBE_TOWARDS_WITH_SIGNAL() + (' X ' + (self.fmt.string(destination_point_x)) + ' Y ' + (self.fmt.string(destination_point_y)) ) + ('\t(Probe towards our destination point)\n')))
-
+        
         self.comment('Back off the workpiece and re-probe more slowly')
-        self.write_blocknum()
-        self.write(self.SPACE() + ('#' + intersection_variable_x + '= [#5061 - [ 0.5 * ' + probe_offset_x_component + ']]\n'))
-        self.write_blocknum()
-        self.write(self.SPACE() + ('#' + intersection_variable_y + '= [#5062 - [ 0.5 * ' + probe_offset_y_component + ']]\n'))
         self.write_blocknum();
         self.write(self.RAPID())
-        self.write(self.SPACE() + ' X #' + intersection_variable_x + ' Y #' + intersection_variable_y + '\n')
+        self.write(self.SPACE() + ' X [#5061 - [ 0.5 * [' + probe_offset_x_component + ']]] ')
+        self.write(self.SPACE() + ' Y [#5062 - [ 0.5 * [' + probe_offset_y_component + ']]]\n')
 
         self.write_blocknum()
         self.write(self.FEEDRATE() + self.ffmt.string(self.fh / 2.0) + '\n')
@@ -920,15 +1050,10 @@ class Creator(nc.Creator):
         self.write_blocknum()
         self.write((self.PROBE_TOWARDS_WITH_SIGNAL() + (' X ' + (self.fmt.string(destination_point_x)) + ' Y ' + (self.fmt.string(destination_point_y)) ) + ('\t(Probe towards our destination point)\n')))
 
-        self.comment('Store the probed location somewhere we can get it again later')
         self.write_blocknum()
-        self.write(('#' + intersection_variable_x + '=' + probe_offset_x_component + ' (Portion of probe radius that contributes to the X coordinate)\n'))
+        self.write(('#' + intersection_variable_x + ' = [ [' + probe_offset_x_component + '] + #5061]\n'))
         self.write_blocknum()
-        self.write(('#' + intersection_variable_x + '=[#' + intersection_variable_x + ' + #5061]\n'))
-        self.write_blocknum()
-        self.write(('#' + intersection_variable_y + '=' + probe_offset_y_component + ' (Portion of probe radius that contributes to the Y coordinate)\n'))
-        self.write_blocknum()
-        self.write(('#' + intersection_variable_y + '=[#' + intersection_variable_y + ' + #5062]\n'))
+        self.write(('#' + intersection_variable_y + ' = [ [' + probe_offset_y_component + '] + #5062]\n'))
 
         self.comment('Now move back to the original location')
         self.rapid(retracted_point_x,retracted_point_y)
@@ -938,6 +1063,9 @@ class Creator(nc.Creator):
 
         self.write_blocknum()
         self.write((self.REMOVE_TEMPORARY_COORDINATE_SYSTEM() + ('\t(Restore the previous coordinate system)\n')))
+
+    def probe_grid(self, x_increment, x_count, y_increment, y_count, z_safety, z_probe, feed_rate, filename):
+	pass
 
     def probe_downward_point(self, depth=None, intersection_variable_z=None, touch_off_as_z=None, rapid_down_to_height=None):
         """
@@ -992,6 +1120,12 @@ class Creator(nc.Creator):
         pass
 
     def log_coordinate(self, x=None, y=None, z=None):
+        pass
+
+    def message(self, text=None):
+        pass
+
+    def debug_message(self, message=None):
         pass
 
     def log_message(self, message=None):

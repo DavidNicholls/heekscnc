@@ -42,6 +42,27 @@ const wxBitmap& COp::GetInactiveIcon()
 	return *icon;
 }
 
+/* virtual */ std::list<wxBitmap> COp::GetIcons()
+{
+    std::list<wxBitmap> icons;
+
+    icons.push_back(this->GetIcon());
+
+    if (this->m_active == false)
+    {
+        icons.push_back(GetInactiveIcon());
+    }
+
+    std::list<CFixture> private_fixtures = PrivateFixtures();
+    for (std::list<CFixture>::iterator itFixture = private_fixtures.begin(); itFixture != private_fixtures.end(); itFixture++)
+    {
+        icons.push_back( itFixture->GetIcon() );
+    }
+
+    return(icons);
+}
+
+
 void COp::WriteBaseXML(TiXmlElement *element)
 {
 	if(m_comment.Len() > 0)element->SetAttribute( "comment", m_comment.utf8_str());
@@ -227,6 +248,11 @@ void COp::ReadDefaultValues()
 			default_tool = FIND_FIRST_TOOL( CToolParams::eDrill );
 			if (default_tool <= 0) default_tool = FIND_FIRST_TOOL( CToolParams::eCentreDrill );
 			break;
+
+		case BoringType:
+			default_tool = FIND_FIRST_TOOL( CToolParams::eBoringHead );
+			break;
+
 		case ProfileType:
 		case PocketType:
 		case CounterBoreType:
@@ -315,7 +341,7 @@ class AddFixture: public Tool{
         {
             CFixture::eCoordinateSystemNumber_t coordinate_system_number = CFixture::eCoordinateSystemNumber_t(program->Fixtures()->GetNextFixture());
 
-            CFixture *new_object = new CFixture( NULL, coordinate_system_number, program->m_machine.m_safety_height_defined, program->m_machine.m_safety_height );
+            CFixture *new_object = new CFixture( NULL, coordinate_system_number );
             m_pThis->Add(new_object, NULL);
             heeksCAD->ClearMarkedList();
             heeksCAD->Mark(new_object);

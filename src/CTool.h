@@ -35,6 +35,7 @@ public:
 		eExtrusion,
 		eTapTool,
 		eEngravingTool,
+		eBoringHead,
 		eUndefinedToolType
 	} eToolType;
 
@@ -76,6 +77,9 @@ public:
 			break;
 
 		case eEngravingTool:	ss << _("Engraving Tool");
+			break;
+
+		case eBoringHead:	ss << _("Boring Head");
 			break;
 
 		case eUndefinedToolType: ss << _("Undefined tool type");
@@ -125,6 +129,9 @@ public:
 		case eEngravingTool:	ss << _("Engraving Tool");
 			break;
 
+		case eBoringHead:	ss << _("Boring Head");
+			break;
+
 		case eUndefinedToolType: ss << _("Undefined tool type");
 			break;
 		} // End switch()
@@ -152,6 +159,7 @@ public:
 		types_list.push_back( ToolTypeDescription_t( eToolLengthSwitch, wxString(_("Tool Length Switch")) ));
 		types_list.push_back( ToolTypeDescription_t( eExtrusion, wxString(_("Extrusion")) ));
 		types_list.push_back( ToolTypeDescription_t( eTapTool, wxString(_("Tapping Tool")) ));
+		types_list.push_back( ToolTypeDescription_t( eBoringHead, wxString(_("Boring Head")) ));
 		types_list.push_back( ToolTypeDescription_t( eEngravingTool, wxString(_("Engraving Tool")) ));
 		return(types_list);
 	} // End GetToolTypesList() method
@@ -297,7 +305,28 @@ public:
 	double m_gradient;
 
 	// properties for tapping tools
-	int m_direction;    // 0.. right hand tapping, 1..left hand tapping
+	typedef enum {
+		eRightHandThread = 0,
+		eLeftHandThread
+	} eTappingDirection_t;
+
+	friend wxString & operator << ( wxString & ss, const eTappingDirection_t & direction )
+	{
+		switch (direction)
+		{
+		case eRightHandThread:
+			ss << _("Right Hand");
+			break;
+
+		case eLeftHandThread:
+			ss << _("Left Hand");
+			break;
+		}
+
+		return(ss);
+	}
+
+	eTappingDirection_t m_direction;    // 0.. right hand tapping, 1..left hand tapping
 	double m_pitch;     // in units/rev
 
 	// properties for centre-drills
@@ -385,6 +414,7 @@ public:
 	wxString ResetTitle();
 	static wxString FractionalRepresentation( const double original_value, const int max_denominator = 64 );
 	static wxString GuageNumberRepresentation( const double size, const double units );
+	static wxString PrintedCircuitBoardRepresentation( const double size, const double units );
 
 	TopoDS_Shape GetShape() const;
 	TopoDS_Face  GetSideProfile() const;

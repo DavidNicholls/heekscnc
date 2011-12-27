@@ -29,10 +29,11 @@ public:
 	double m_standoff;		// This is the height above the staring Z position that forms the Z retract height
 	double m_dwell;			// If dwell_bottom is non-zero then we're using the G82 tap cycle rather than G83 peck drill cycle.  This is the 'P' word
 	int    m_sort_tapping_locations;	// Perform a location-based sort before generating GCode?
-	int    m_tap_mode;	                // tap_mode_t
+	tap_mode_t    m_tap_mode;	                // tap_mode_t
 	int    m_direction;	                // right=0, left=1
 	// double m_pitch;	        // typically mm/rev - read from tool parameter
 	double m_depth;         // length of thread below x/y/z
+	double m_clearance_height;
 
 	// The following line is the prototype setup in the Python routines for the tap sequence.
         // def tap(x=None, y=None, z=None, zretract=None, depth=None, standoff=None, dwell_bottom=None, pitch=None, stoppos=None, spin_in=None, spin_out=None):
@@ -50,6 +51,9 @@ public:
 
 	bool operator== ( const CTappingParams & rhs ) const;
 	bool operator!= ( const CTappingParams & rhs ) const { return(! (*this == rhs)); }
+
+	double ClearanceHeight() const;
+	void   ClearanceHeight(const double value) { m_clearance_height = value; }
 };
 
 /**
@@ -140,6 +144,14 @@ public:
 	bool operator==( const CTapping & rhs ) const;
 	bool operator!=( const CTapping & rhs ) const { return(! (*this == rhs)); }
 	bool IsDifferent( HeeksObj *other ) { return( *this != (*(CTapping *)other) ); }
+
+	/* virtual */ void OnSetTool(const COp::ToolNumber_t new_tool_number); // from COp class.
+
+	// virtual functions from CSpeedOp class
+	/* virtual */ void ResetSpeeds(const int tool_number, const double bored_hole_diameter);
+	/* virtual */ void ResetFeeds(const int tool_number);
+	/* virtual */ bool IncludeHorozontalFeedRate() const;
+	/* virtual */ bool IncludeVerticalFeedRate() const;
 };
 
 

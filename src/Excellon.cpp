@@ -15,6 +15,8 @@
 #include "Program.h"
 #include "Tools.h"
 #include "Operations.h"
+#include "CDouble.h"
+#include "CounterBore.h"
 
 #include <sstream>
 #include <fstream>
@@ -164,25 +166,110 @@ bool Excellon::Read( const char *p_szFileName, const bool force_mirror /* = fals
 			} // End if - then
 		} // End while
 
-		// Now go through and add the drilling cycles for each different tool.
+		// Have a look at the endmills we have in the tool table.  Find the smallest one
+		// and offer to counterbore the larger drill holes with that rather than ask for
+		// large drill bits.
+
+		CTool *pSmallEndmill = NULL;
+		for (HeeksObj *obj = theApp.m_program->Tools()->GetFirstChild(); obj != NULL; obj = theApp.m_program->Tools()->GetNextChild())
+		{
+		    if (obj->GetType() == ToolType)
+		    {
+		        CTool *pTool = (CTool *) obj;
+		        if ((pTool->m_params.m_type == CToolParams::eEndmill) ||
+                    (pTool->m_params.m_type == CToolParams::eSlotCutter))
+                {
+                    if (pSmallEndmill == NULL) pSmallEndmill = pTool;
+                    if (pSmallEndmill->CuttingRadius(false, 2.0) > pTool->CuttingRadius(false, 2.0))
+                    {
+                        pSmallEndmill = pTool;
+                    }
+                }
+		    }
+		}
+
+        bool use_counterbore_operation = false;
+
 		std::set< CTool::ToolNumber_t > tool_numbers;
 		for (Holes_t::const_iterator l_itHole = m_holes.begin(); l_itHole != m_holes.end(); l_itHole++)
 		{
 			tool_numbers.insert( l_itHole->first );
+			if (pSmallEndmill != NULL)
+			{
+			    CTool *pTool = CTool::Find(l_itHole->first);
+			    if (pTool != NULL)
+			    {
+			        if (pTool->CuttingRadius(false, 2.0) > pSmallEndmill->CuttingRadius(false, 2.0))
+			        {
+			            use_counterbore_operation = true;
+			        }
+			    }
+			}
 		} // End for
+
+		if ((pSmallEndmill != NULL) && (use_counterbore_operation == true))
+		{
+		    use_counterbore_operation = false;
+
+		    // We've found an endmill.  Offer to use it on the larger holes.
+		    wxString message(_("Use counterbore for larger holes?"));
+            wxString caption(_("Use counterbore for larger holes?"));
+
+            wxArrayString choices;
+
+            {
+                wxString option;
+                option << _("Use ") << pSmallEndmill->m_title << _(" for holes larger than ") << pSmallEndmill->CuttingRadius(true, 2.0) << _T("?");
+                choices.Add(option);
+            }
+            choices.Add(_("Use drill operation for all holes"));
+
+            wxString choice = ::wxGetSingleChoice( message, caption, choices );
+
+            if ((choices.size() > 0) && (choice == choices[0]))
+            {
+                use_counterbore_operation = true;
+            }
+		}
+
+		// Now go through and add the drilling cycles for each different tool.
+
 
 		for (std::set<CTool::ToolNumber_t>::const_iterator l_itToolNumber = tool_numbers.begin();
 			l_itToolNumber != tool_numbers.end(); l_itToolNumber++)
 		{
 			double depth = 2.5;	// mm
-			CDrilling *new_object = new CDrilling( m_holes[ *l_itToolNumber ], *l_itToolNumber, depth );
-			new_object->m_speed_op_params.m_spindle_speed = m_spindle_speed;
-			new_object->m_speed_op_params.m_vertical_feed_rate = m_feed_rate;
-			new_object->m_params.m_peck_depth = 0.0;	// Don't peck for a Printed Circuit Board.
-			new_object->m_params.m_dwell = 0.0;		// Don't wait around to clear stringers either.
-			new_object->m_params.m_standoff = 2.0;		// Printed Circuit Boards a quite flat
 
-			theApp.m_program->Operations()->Add(new_object,NULL);
+			CTool *pTool = CTool::Find(*l_itToolNumber);
+			if ((pTool != NULL) &&
+				(pTool->CuttingRadius(false, 2.0) > pSmallEndmill->CuttingRadius(false, 2.0)) &&
+				(use_counterbore_operation == true))
+			{	
+				CCounterBore *new_object = new CCounterBore( m_holes[ *l_itToolNumber ], *l_itToolNumber );
+				new_object->m_params.m_diameter = pTool->CuttingRadius(false,2.0) * 2.0;
+				new_object->m_params.m_finishing_pass = 0.0;
+				new_object->m_params.m_sort_locations = true;
+				new_object->m_depth_op_params.m_start_depth = 0.0;
+				new_object->m_depth_op_params.m_final_depth = -1.0 * depth;
+				new_object->m_depth_op_params.m_step_down = pSmallEndmill->CuttingRadius(false,2.0) / 2.0;	// step down one quarter of the diameter.
+				new_object->m_speed_op_params.m_spindle_speed = m_spindle_speed;
+				new_object->m_speed_op_params.m_vertical_feed_rate = m_feed_rate;
+				new_object->m_depth_op_params.m_rapid_safety_space = 2.0;		// Printed Circuit Boards a quite flat
+				new_object->m_depth_op_params.ClearanceHeight( 10.0 );		// Printed Circuit Boards a quite flat
+
+				theApp.m_program->Operations()->Add(new_object,NULL);
+			}
+			else
+			{
+				CDrilling *new_object = new CDrilling( m_holes[ *l_itToolNumber ], *l_itToolNumber, depth );
+				new_object->m_speed_op_params.m_spindle_speed = m_spindle_speed;
+				new_object->m_speed_op_params.m_vertical_feed_rate = m_feed_rate;
+				new_object->m_params.m_peck_depth = 0.0;	// Don't peck for a Printed Circuit Board.
+				new_object->m_params.m_dwell = 0.0;		// Don't wait around to clear stringers either.
+				new_object->m_params.m_standoff = 2.0;		// Printed Circuit Boards a quite flat
+
+				theApp.m_program->Operations()->Add(new_object,NULL);
+			}
 		} // End for
 
 		return(true);	// Success
@@ -621,12 +708,12 @@ bool Excellon::ReadDataBlock( const std::string & data_block )
                 // represented number as is.
                 if (m_absoluteCoordinatesMode)
                 {
-                    position.SetX( x );
+                    position.SetX( x * m_units );
                 }
                 else
                 {
                     // Incremental position.
-                    position.SetX( position.X() + x );
+                    position.SetX( position.X() + (x * m_units) );
                 }
             }
 		}
@@ -669,12 +756,12 @@ bool Excellon::ReadDataBlock( const std::string & data_block )
 
                     if (m_absoluteCoordinatesMode)
                     {
-                        position.SetY( y );
+                        position.SetY( y * m_units );
                     }
                     else
                     {
                         // Incremental position.
-                        position.SetY( position.Y() + y );
+                        position.SetY( position.Y() + (y * m_units) );
                     }
             }
 		}
@@ -771,7 +858,6 @@ bool Excellon::ReadDataBlock( const std::string & data_block )
 	{
 		// We either want to find an existing drill bit of this size or we need
 		// to define a new one.
-
 		if ((tool_diameter <= 0.0) && s_allow_dummy_tool_definitions)
 		{
 			// The file doesn't define the tool's diameter.  Just convert the tool number into a value in thousanths
@@ -780,35 +866,39 @@ bool Excellon::ReadDataBlock( const std::string & data_block )
 			tool_diameter = (excellon_tool_number * 0.001);
 		}
 
-		bool found = false;
-		for (HeeksObj *tool = theApp.m_program->Tools()->GetFirstChild(); tool != NULL; tool = theApp.m_program->Tools()->GetNextChild() )
+		bool found = (m_tool_table_map.find(excellon_tool_number) != m_tool_table_map.end());
+		if ((theApp.m_program) && (theApp.m_program->Tools()))
 		{
-			// We're looking for a tool whose diameter is tool_diameter.
-			CTool *pTool = (CTool *)tool;
-			if (fabs(pTool->m_params.m_diameter - tool_diameter) < heeksCAD->GetTolerance())
+			for (HeeksObj *tool = theApp.m_program->Tools()->GetFirstChild(); (! found) && (tool != NULL); tool = theApp.m_program->Tools()->GetNextChild() )
 			{
-				// We've found it.
+				// We're looking for a tool whose diameter is tool_diameter.
+				CTool *pTool = (CTool *)tool;
+				if ((pTool->m_params.m_type == CToolParams::eDrill) &&
+					(CDouble(pTool->m_params.m_diameter) == CDouble(tool_diameter * m_units)))
+				{
+					// We've found it.
+					// Keep a map of the tool numbers found in the Excellon file to those in our tool table.
+					m_tool_table_map.insert( std::make_pair( excellon_tool_number, pTool->m_tool_number ));
+					m_active_tool_number = pTool->m_tool_number;	// Use our internal tool number
+					found = true;
+					break;
+				} // End if - then
+			} // End for
+
+			if ((! found) && (tool_diameter > 0.0))
+			{
+				// We didn't find an existing tool with the right diameter.  Add one now.
+				int id = heeksCAD->GetNextID(ToolType);
+				CTool *tool = new CTool(NULL, CToolParams::eDrill, id);
+				heeksCAD->SetObjectID( tool, id );
+				tool->SetDiameter( tool_diameter * m_units );
+				theApp.m_program->Tools()->Add( tool, NULL );
+
 				// Keep a map of the tool numbers found in the Excellon file to those in our tool table.
-				m_tool_table_map.insert( std::make_pair( excellon_tool_number, pTool->m_tool_number ));
-				m_active_tool_number = pTool->m_tool_number;	// Use our internal tool number
-				found = true;
-				break;
-			} // End if - then
-		} // End for
-
-        if ((! found) && (tool_diameter > 0.0))
-        {
-            // We didn't find an existing tool with the right diameter.  Add one now.
-            int id = heeksCAD->GetNextID(ToolType);
-            CTool *tool = new CTool(NULL, CToolParams::eDrill, id);
-            heeksCAD->SetObjectID( tool, id );
-            tool->SetDiameter( tool_diameter * m_units );
-            theApp.m_program->Tools()->Add( tool, NULL );
-
-            // Keep a map of the tool numbers found in the Excellon file to those in our tool table.
-            m_tool_table_map.insert( std::make_pair( excellon_tool_number, tool->m_tool_number ));
-            m_active_tool_number = tool->m_tool_number;	// Use our internal tool number
-        }
+				m_tool_table_map.insert( std::make_pair( excellon_tool_number, tool->m_tool_number ));
+				m_active_tool_number = tool->m_tool_number;	// Use our internal tool number
+			}
+		}
 	} // End if - then
 
 	if (excellon_tool_number > 0)

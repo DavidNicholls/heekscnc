@@ -21,7 +21,15 @@ class CCounterBore;
 class CCounterBoreParams{
 
 public:
+	CCounterBoreParams()
+	{
+		m_diameter = 25.4;
+		m_finishing_pass = 0.1;
+		m_sort_locations = 1;
+	}
+
 	double m_diameter;
+	double m_finishing_pass;	// thickness of final helical toolpath (to cleanup edge of counterbore)
 	int m_sort_locations;		// '1' = sort location points prior to generating GCode (to optimize paths)
 
 	void set_initial_values( const int tool_number );
@@ -112,7 +120,19 @@ public:
 	// This is the method that gets called when the operator hits the 'Python' button.  It generates a Python
 	// program whose job is to generate RS-274 GCode.
 	Python AppendTextToProgram(CMachineState *pMachineState);
-	Python GenerateGCodeForOneLocation( const CNCPoint & location, const CTool *pTool ) const;
+	Python GenerateGCodeForOneLocation( const CNCPoint & location, const CTool *pTool, CMachineState *pMachineState ) const;
+	Python HelicalToolpath( const CNCPoint & location,
+							const CTool *pTool, 
+							const double toolpath_radius,
+							CMachineState *pMachineState,
+							const double start_depth,
+							const double final_depth,
+							const double gradient,	
+							const double step_down ) const;
+	Python OneRevolution(  CMachineState *pMachineState,
+						   CNCPoint centre,
+						   const double toolpath_radius,
+						   const double gradient ) const;
 
 	static HeeksObj* ReadFromXMLElement(TiXmlElement* pElem);
 

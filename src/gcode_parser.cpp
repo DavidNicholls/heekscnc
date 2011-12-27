@@ -136,6 +136,7 @@ wxString ColourForStatementType( const eStatement_t statement_type )
 	case stArcCounterClockwise:
 	case stDrilling:
 	case stTapping:
+	case stBoring:
 		return(_T("feed"));
 
 	case stComment:
@@ -548,6 +549,7 @@ extern "C" void AddToHeeks()
 			case stArcClockwise:
 			case stArcCounterClockwise:
 			case stDrilling:
+			case stBoring:
 			case stTapping:
 				pParseState->statement_type = pParseState->previous_statement_type;	// Reinstate the previous statement type.
 			break;
@@ -717,6 +719,7 @@ extern "C" void AddToHeeks()
                 if (pParseState->feed_rate <= 0.0) popup_warnings.insert(_("Zero feed rate found for arc movement"));
 			break;
 
+		case stBoring:
 		case stDrilling:
             xml << _T("<path col=\"rapid\" fixture=\"") << int(pParseState->modal_coordinate_system) << _T("\">\n")
                 << _T("<line x=\"") << adjust(0,pParseState->x) << _T("\" ")
