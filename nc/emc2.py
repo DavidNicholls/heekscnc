@@ -297,9 +297,21 @@ class Creator(iso.Creator):
 			self.write_blocknum()
 			self.write('(LOG,</POINT>)\n')
 
-	def log_message(self, message=None ):
+	def debug_message(self, text=None ):
+		# Replace any embedded round brackets with curly braces so that the EMC2 GCode
+		# interpreter will not have trouble with the nested comment format.
+		_message = text.replace('(','{')
+		_message = _message.replace(')','}')
 		self.write_blocknum()
-		self.write('(LOG,' + message + ')\n')
+		self.write('(DEBUG,' + _message + ')\n')
+		
+	def log_message(self, text=None ):
+		# Replace any embedded round brackets with curly braces so that the EMC2 GCode
+		# interpreter will not have trouble with the nested comment format.
+		_message = text.replace('(','{')
+		_message = _message.replace(')','}')
+		self.write_blocknum()
+		self.write('(LOG,' + _message + ')\n')
 		
 	def message(self, text=None ):
 		# Replace any embedded round brackets with curly braces so that the EMC2 GCode
@@ -410,6 +422,10 @@ class Creator(iso.Creator):
 		self.write( self.NURBS_END() )
 		self.write( '\n')
 
+	def variable_set(self, id, value):
+		self.write_blocknum()
+		self.write('#' + id + ' = ' + value + '\n')
+
 	def measure_and_offset_tool(self, distance=None, switch_offset_variable_name=None, fixture_offset_variable_name=None, feed_rate=None ):
 	        self.write_blocknum()
 		self.write(self.DISABLE_TOOL_LENGTH_COMPENSATION() + ' (Turn OFF tool length compensation)\n');
@@ -430,5 +446,49 @@ class Creator(iso.Creator):
 		self.write_blocknum()
 		self.write((self.REMOVE_TEMPORARY_COORDINATE_SYSTEM() + '\t(Ensure no temporary coordinate systems are in effect)\n'))
 
+	def probe_grid(self, x_increment, x_count, y_increment, y_count, z_safety, z_probe, feed_rate, filename):
+	        self.write_blocknum()
+		self.write( self.SPACE() + self.FEEDRATE() + self.fmt.string(feed_rate) + '\n' )
+		self.write_blocknum()
+		self.write(self.SPACE() + self.SET_TEMPORARY_COORDINATE_SYSTEM() + ' X 0 Y 0 Z 0\t(Temporarily make this the origin)\n')
+	
+		self.write( self.SPACE() + '#<x_start>=0.0\t(X start)\n');
+		self.write( self.SPACE() + '#<x_increment>=' + self.fmt.string(x_increment) + '\t(X increment)\n')
+		self.write( self.SPACE() + '#<x_count_max>=' + self.fmt.string(x_count) + '\t(X count)\n')
+		self.write( self.SPACE() + '#<y_start>=0.0\n')
+		self.write( self.SPACE() + '#<y_increment>=' + self.fmt.string(y_increment) + '\n')
+		self.write( self.SPACE() + '#<y_count_max>=' + self.fmt.string(y_count) + '\t(Y count)\n')
+		self.write( self.SPACE() + '#<z_safety>=' + self.fmt.string(z_safety) + '\t(Z safety)\n')
+		self.write( self.SPACE() + '#<z_probe>=' + self.fmt.string(z_probe) + '\t(Z probe)\n')
+		self.write( self.SPACE() + '(LOGOPEN,' + filename + ')\n')
+		self.write( self.SPACE() + '#<y_count>=0 #<x_count>=0\n')
+		self.write( self.SPACE() + 'G00 Z#<z_safety>\n')
+		self.write( self.SPACE() + 'O1 while [#<y_count> lt #<y_count_max>]\n')
+		self.write( self.SPACE() + '#<x_count>=0\n')
+		self.write( self.SPACE() + 'G00 Y[#<y_start>+#<y_increment>*#<y_count>]\n')
+		self.write( self.SPACE() + 'O2 while [#<x_count> lt #<x_count_max>]\n')
+		self.write( self.SPACE() + 'O3 if [[#<y_count>/2] - fix[#<y_count>/2] eq 0]\n')
+		self.write( self.SPACE() + '#<x_target>=[#<x_start>+#<x_increment>*#<x_count>]\n')
+		self.write( self.SPACE() + 'O3 else\n')
+		self.write( self.SPACE() + '#<x_target>=[#<x_start>+#<x_increment>*[#<x_count_max>-#<x_count>-1]]\n')
+		self.write( self.SPACE() + 'O3 endif\n')
+		self.write( self.SPACE() + '#5070=1\n')
+		self.write( self.SPACE() + 'O4 while [#5070 NE 0]\n')
+		self.write( self.SPACE() + 'G38.5 z#<z_safety>\n')
+		self.write( self.SPACE() + 'G38.3 x#<x_target>\n')
+		self.write( self.SPACE() + 'O4 endwhile\n')
+		self.write( self.SPACE() + 'G38.2Z#<z_probe>\n')
+		self.write( self.SPACE() + '(LOG,G1 X#5061 Y#5062 Z#5063)\n')
+		self.write( self.SPACE() + '#<x_count>=[#<x_count>+1]\n')
+		self.write( self.SPACE() + 'O2 endwhile\n')
+		self.write( self.SPACE() + 'G0Z#<z_safety>\n')
+		self.write( self.SPACE() + '#<y_count>=[#<y_count>+1]\n')
+		self.write( self.SPACE() + 'O1 endwhile\n')
+		self.write( self.SPACE() + '(LOGCLOSE)\n')
+		self.write( self.SPACE() + 'G00 Z#<z_safety>\n')
+		self.write( self.SPACE() + 'G00 X#<x_start> Y#<y_start>\n')
+
+		self.write_blocknum()
+		self.write((self.REMOVE_TEMPORARY_COORDINATE_SYSTEM() + '\n'))
 nc.creator = Creator()
 
